@@ -35,6 +35,7 @@ final class StageManager {
     private var timers: [Timer] = []
     private var capturing = false
     private var appleStageManagerWasOn = false
+    private var unminimizing: Set<CGWindowID> = []
     private lazy var panel = StripPanel(model: strip) { [weak self] id, replace in
         self?.select(id, replacingStage: replace)
     }
@@ -147,7 +148,7 @@ final class StageManager {
     }
 
     private func ignoreFocus(for seconds: TimeInterval = 0.4) {
-        ignoreFocusUntil = Date().addingTimeInterval(seconds)
+        ignoreFocusUntil = max(ignoreFocusUntil, Date().addingTimeInterval(seconds))
     }
 
     // Cmd-Tab or a Dock click onto an off-stage window pulls it onto the stage. The short delay lets a
@@ -172,6 +173,7 @@ final class StageManager {
     }
 
     func reconcile() {
+        catchMinimizedStageWindows()
         let apps = NSWorkspace.shared.runningApplications.filter {
             $0.activationPolicy == .regular && !$0.isHidden && $0.processIdentifier != getpid()
         }
@@ -189,6 +191,7 @@ final class StageManager {
                 seen.insert(id)
                 if let window = windows[id] {
                     window.element = element
+                    watch(window)
                     window.title = element.title ?? window.title
                     window.present = true
                     if parked.contains(id), !Geometry.isParked(frame) {
@@ -209,7 +212,7 @@ final class StageManager {
             }
         }
 
-        for (id, window) in windows where !seen.contains(id) {
+        for (id, window) in windows where !seen.contains(id) && !unminimizing.contains(id) {
             if !livePIDs.contains(window.pid) || window.element.frame == nil || window.element.isMinimized {
                 forget(id)
             } else {
@@ -248,6 +251,36 @@ final class StageManager {
         }
     }
 
+    // Focus leaves a window the moment its minimize starts, while kAXWindowMiniaturizedNotification only
+    // arrives once the genie has finished, so focus changes and the sync tick are where minimize is caught.
+    private func catchMinimizedStageWindows() {
+        guard isActive else { return }
+        for id in Array(stage) where windows[id]?.element.isMinimized == true {
+            parkMinimized(id)
+        }
+    }
+
+    /// Minimize sends the window to the strip, not the Dock. There is no public hook before the genie
+    /// runs, so the window is moved off-screen while still minimized and then restored there.
+    private func parkMinimized(_ id: CGWindowID) {
+        guard let window = windows[id], !unminimizing.contains(id) else { return }
+        ignoreFocus(for: 1.5)
+        unminimizing.insert(id)
+        park(id)
+        window.element.setMinimized(false)
+        publish()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in
+            MainActor.assumeIsolated {
+                guard let self, let window = self.windows[id] else { return }
+                self.unminimizing.remove(id)
+                if let frame = window.element.frame, !Geometry.isParked(frame) {
+                    window.element.setPosition(Geometry.parkPoint)
+                }
+                Log.write("minimize -> strip \(id) '\(window.title)' landed \(window.element.frame.map { "\($0)" } ?? "nil")")
+            }
+        }
+    }
+
     // MARK: Accessibility notifications
 
     private func observe(_ pid: pid_t) {
@@ -256,7 +289,7 @@ final class StageManager {
             guard let refcon else { return }
             let manager = Unmanaged<StageManager>.fromOpaque(refcon).takeUnretainedValue()
             let name = notification as String
-            MainActor.assumeIsolated { manager.handle(name) }
+            MainActor.assumeIsolated { manager.handle(name, element) }
         }
         guard AXObserverCreate(pid, callback, &observer) == .success, let observer else { return }
         let app = AXUIElementCreateApplication(pid)
@@ -275,9 +308,10 @@ final class StageManager {
         watchedWindows.insert(window.id)
     }
 
-    private func handle(_ notification: String) {
+    private func handle(_ notification: String, _ element: AXUIElement) {
         switch notification {
         case kAXFocusedWindowChangedNotification, kAXMainWindowChangedNotification:
+            catchMinimizedStageWindows()
             scheduleFocusCheck()
         case kAXUIElementDestroyedNotification, kAXWindowMiniaturizedNotification:
             ignoreFocus()

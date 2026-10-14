@@ -49,6 +49,10 @@ extension AXUIElement {
         if let value = AXValueCreate(.cgSize, &size) { set(kAXSizeAttribute, value) }
     }
 
+    func setMinimized(_ minimized: Bool) {
+        set(kAXMinimizedAttribute, minimized as CFBoolean)
+    }
+
     func focus(appPID: pid_t) {
         AXUIElementCreateApplication(appPID).set(kAXFrontmostAttribute, kCFBooleanTrue)
         set(kAXMainAttribute, kCFBooleanTrue)
