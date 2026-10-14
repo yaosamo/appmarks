@@ -28,18 +28,22 @@ final class DragProxy: NSPanel {
         orderFrontRegardless()
     }
 
-    /// `frame` is in Accessibility coordinates; `progress` runs 0 (full window) to 1 (over the strip),
-    /// and the tilt grows with it into the same projection the strip draws its thumbnails with.
-    func update(frame: CGRect, progress: Double, style: Style) {
+    func setImage(_ image: NSImage) {
+        imageLayer.contents = image.cgImage(forProposedRect: nil, context: nil, hints: nil)
+    }
+
+    /// `frame` is in Accessibility coordinates; `tilt` runs 0 (flat) to 1, the same projection the strip
+    /// draws its thumbnails with.
+    func update(frame: CGRect, tilt: Double, cornerRadius: Double, style: Style) {
         let screen = NSScreen.screens[0]
         let center = CGPoint(x: frame.midX, y: screen.frame.height - frame.midY)
-        let angle = style.angle * progress * .pi / 180
+        let angle = style.angle * tilt * .pi / 180
 
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         imageLayer.bounds = CGRect(origin: .zero, size: frame.size)
         imageLayer.position = center
-        imageLayer.cornerRadius = 10 + (style.cornerRadius - 10) * progress
+        imageLayer.cornerRadius = cornerRadius
         var camera = CATransform3DIdentity
         if style.globalPerspective {
             // The strip's single camera, pivoting on its vanishing point rather than on this image.

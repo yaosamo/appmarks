@@ -54,7 +54,6 @@ final class StageManager {
     }, onDrag: { [weak self] id, ended in
         self?.dragThumbnail(id, ended: ended)
     })
-    private let ghost = DragGhost()
     private let proxy = DragProxy()
     private var proxyImages: [CGWindowID: NSImage] = [:]
     /// The window being carried to the strip: where it was grabbed (as a fraction of its size), its frame
@@ -239,23 +238,20 @@ final class StageManager {
     }
 
     /// Dragging a thumbnail out of the strip drops its window onto the stage, centred under the pointer.
+    /// Dragging a thumbnail out of the strip is the drag-in run backwards: the stand-in leaves the strip
+    /// tilted, straightens, then grows to full size, and the window lands where it is let go.
     func dragThumbnail(_ id: CGWindowID, ended: Bool) {
-        let point = NSEvent.mouseLocation
-        guard ended else { return ghost.show(windows[id]?.thumbnail, at: point) }
-        ghost.orderOut(nil)
-        guard isActive, point.x > Geometry.stripWidth, let window = windows[id] else { return }
-        let drop = Geometry.toAXPoint(point)
-        let area = Geometry.stageArea
-        let size = CGSize(width: min(window.size.width, area.width), height: min(window.size.height, area.height))
-        let x = min(max(drop.x - size.width / 2, area.minX), area.maxX - size.width)
-        let y = min(max(drop.y - size.height / 2, area.minY), area.maxY - size.height)
-        ignoreFocus()
-        place(window, in: CGRect(origin: CGPoint(x: x, y: y), size: size))
-        parked.removeAll { $0 == id }
-        stage.insert(id)
-        NSRunningApplication(processIdentifier: window.pid)?.activate()
-        window.element.focus(appPID: window.pid)
-        publish()
+        let point = Geometry.toAXPoint(NSEvent.mouseLocation)
+        if ended { return endCarry(at: point) }
+        if carried == nil {
+            guard isActive, let window = windows[id] else { return }
+            carried = (id, CGPoint(x: 0.5, y: 0.06), window.size, window.savedOrigin ?? .zero)
+            ignoreFocus(for: 2)
+            proxy.show(proxyImages[id] ?? window.thumbnail)
+            prepareCarry(id)
+            publish()
+        }
+        carry(to: point)
     }
 
     /// The stage window whose title bar sits under `point`, i.e. the one a drag starting there moves.
@@ -268,6 +264,8 @@ final class StageManager {
     }
 
     /// 0 while the pointer is farther than the drag shrink distance from the strip, 1 over the strip.
+    var isCarrying: Bool { carried != nil }
+
     func dragProgress(at x: CGFloat) -> CGFloat {
         let span = Settings.shared.style.dragTransition
         return min(max((Geometry.stripWidth + span - x) / span, 0), 1)
@@ -278,7 +276,9 @@ final class StageManager {
     func prepareCarry(_ id: CGWindowID) {
         guard let width = windows[id]?.size.width else { return }
         Task { @MainActor in
-            if let image = await Thumbnails.capture([id], width: width * 2)[id] { proxyImages[id] = image }
+            guard let image = await Thumbnails.capture([id], width: width * 2)[id] else { return }
+            proxyImages[id] = image
+            if carried?.id == id { proxy.setImage(image) }
         }
     }
 
@@ -298,31 +298,43 @@ final class StageManager {
         guard let carried else { return }
         let style = Settings.shared.style
         let p = dragProgress(at: point.x)
+        // Stage Manager's order: the window shrinks to thumbnail size first, and only then turns into the
+        // strip's perspective. Dragging out runs the same curve backwards.
+        let split = style.dragShrinkPortion
+        let shrink = min(p / split, 1)
+        let tilt = split < 1 ? max((p - split) / (1 - split), 0) : 0
         let fit = min(style.maxWidth / carried.size.width, style.maxHeight / carried.size.height)
         let target = CGSize(width: carried.size.width * fit * style.squeeze, height: carried.size.height * fit)
-        let size = CGSize(width: carried.size.width + (target.width - carried.size.width) * p,
-                          height: carried.size.height + (target.height - carried.size.height) * p)
+        let size = CGSize(width: carried.size.width + (target.width - carried.size.width) * shrink,
+                          height: carried.size.height + (target.height - carried.size.height) * shrink)
         let origin = CGPoint(x: point.x - carried.grab.x * size.width, y: point.y - carried.grab.y * size.height)
-        proxy.update(frame: CGRect(origin: origin, size: size), progress: p, style: style)
+        proxy.update(frame: CGRect(origin: origin, size: size), tilt: tilt,
+                     cornerRadius: 10 + (style.cornerRadius - 10) * shrink, style: style)
     }
 
-    /// Over the strip the window stays parked; anywhere else it comes back full size under the pointer.
+    /// Let go over the strip and the window is (or stays) parked; anywhere else it lands full size on the
+    /// stage under the pointer.
     func endCarry(at point: CGPoint) {
         proxy.orderOut(nil)
         guard let carried, let window = windows[carried.id] else { return }
         self.carried = nil
         proxyImages[carried.id] = nil
         if point.x < Geometry.stripWidth {
-            window.size = carried.size
-            window.savedOrigin = carried.origin
-            stage.remove(carried.id)
-            parked.removeAll { $0 == carried.id }
-            parked.insert(carried.id, at: 0)
-            focusNextStageWindow(of: window.pid)
+            if stage.contains(carried.id) {
+                window.size = carried.size
+                window.savedOrigin = carried.origin
+                stage.remove(carried.id)
+                parked.removeAll { $0 == carried.id }
+                parked.insert(carried.id, at: 0)
+                focusNextStageWindow(of: window.pid)
+            }
         } else {
             let origin = CGPoint(x: point.x - carried.grab.x * carried.size.width,
                                  y: max(point.y - carried.grab.y * carried.size.height, Geometry.stageArea.minY))
             place(window, in: CGRect(origin: origin, size: carried.size))
+            parked.removeAll { $0 == carried.id }
+            stage.insert(carried.id)
+            NSRunningApplication(processIdentifier: window.pid)?.activate()
             window.element.focus(appPID: window.pid)
         }
         publish()
@@ -509,7 +521,8 @@ final class StageManager {
         let items = parked.compactMap { id -> StripItem? in
             guard let window = windows[id], window.present else { return nil }
             let app = appInfo(window.pid)
-            return StripItem(id: id, title: window.title, appName: app.name, icon: app.icon, thumbnail: window.thumbnail)
+            return StripItem(id: id, title: window.title, appName: app.name, icon: app.icon, thumbnail: window.thumbnail,
+                             isCarried: id == carried?.id)
         }
         if items != strip.items { strip.items = items }
         updateSwitcher()

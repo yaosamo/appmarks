@@ -12,6 +12,7 @@ struct Style: Codable, Equatable {
     var maxWidth = 128.0
     var squeeze = 1.0
     var dragTransition = 170.0
+    var dragShrinkPortion = 0.6
     var maxHeight = 96.0
     var cornerRadius = 7.0
     var angle = 18.0
@@ -139,6 +140,7 @@ private struct SettingsView: View {
                     SliderRow("Max height", $settings.style.maxHeight, 40...240)
                     SliderRow("Width squeeze", $settings.style.squeeze, 0.2...1, step: 0.01, digits: 2)
                     SliderRow("Drag shrink distance", $settings.style.dragTransition, 100...1500, step: 10, unit: "pt")
+                    SliderRow("Shrink before tilt", $settings.style.dragShrinkPortion, 0.1...1, step: 0.05, digits: 2)
                     SliderRow("Corner radius", $settings.style.cornerRadius, 0...30)
                     SliderRow("Angle", $settings.style.angle, -60...60, unit: "°")
                     SliderRow("Hover angle", $settings.style.hoverAngle, -60...60, unit: "°")

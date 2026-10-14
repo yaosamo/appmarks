@@ -7,9 +7,12 @@ struct StripItem: Identifiable, Equatable {
     let appName: String
     let icon: NSImage?
     let thumbnail: NSImage?
+    /// Hidden rather than removed while dragged out: removing it would tear down the view that owns the drag.
+    let isCarried: Bool
 
     static func == (a: Self, b: Self) -> Bool {
         a.id == b.id && a.title == b.title && a.appName == b.appName && a.thumbnail === b.thumbnail
+            && a.isCarried == b.isCarried
     }
 }
 
@@ -134,6 +137,7 @@ private struct Thumbnail: View {
             }
         }
         .scaleEffect(hovering ? style.hoverScale : 1)
+        .opacity(item.isCarried ? 0 : 1)
         .animation(.easeOut(duration: style.hoverDuration), value: hovering)
         .contentShape(Rectangle())
         .onHover { hovering = $0 }

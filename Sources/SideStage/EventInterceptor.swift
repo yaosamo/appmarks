@@ -87,6 +87,9 @@ final class EventInterceptor {
                 endNativeDrag(at: event.location)
                 return nil
             }
+        case .leftMouseUp where manager.isCarrying:
+            // A thumbnail dragged out of the strip; SwiftUI also reports the end, and the second call is a no-op.
+            manager.endCarry(at: event.location)
         case .leftMouseUp:
             if let id = draggedWindow, let start = mouseDownAt {
                 manager.windowDragEnded(id, at: event.location,
