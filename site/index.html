@@ -159,8 +159,8 @@
     }
     .screen {
       position: relative;
-      width: min(100%, calc((100svh - 2 * clamp(24px, 4vh, 48px)) * 1.6));
-      aspect-ratio: 16 / 10;
+      width: min(100%, calc((100svh - 2 * clamp(24px, 4vh, 48px)) * 16 / 9));
+      aspect-ratio: 16 / 9;
       border-radius: 14px;
       overflow: hidden;
       background: var(--stage);
@@ -273,25 +273,27 @@
     </section>
 
     <section class="stage" aria-label="Demo">
-      <div class="screen" id="screen">
-        <video id="demo" src="demo.mp4" autoplay muted loop playsinline preload="auto" aria-label="Appmarks parking and bringing back windows"></video>
+      <div class="screen has-video" id="screen">
+        <video id="demo" autoplay muted loop playsinline preload="auto" poster="demo-poster.jpg" aria-label="Appmarks parking and bringing back windows">
+          <source src="demo-av1.mp4" type='video/mp4; codecs="av01.0.09M.10"' />
+          <source src="demo.mp4" type="video/mp4" />
+        </video>
         <div class="sketch" aria-hidden="true">
           <div class="window"></div>
           <div class="parked"></div>
           <div class="parked"></div>
           <div class="parked"></div>
           <div class="parked"></div>
-          <p>Demo video coming soon</p>
         </div>
       </div>
     </section>
   </main>
   <script>
-    // Show the video once it actually loads; keep the sketch if demo.mp4 is missing.
+    // The browser takes the AV1 file when it can decode it, else the H.264 one. If neither
+    // plays, the last source errors and the sketch takes the video's place.
     const screen = document.getElementById("screen");
-    const demo = document.getElementById("demo");
-    demo.addEventListener("loadeddata", () => screen.classList.add("has-video"));
-    if (demo.readyState >= 2) screen.classList.add("has-video");
+    document.querySelector("#demo source:last-of-type")
+      .addEventListener("error", () => screen.classList.remove("has-video"));
   </script>
 </body>
 </html>
