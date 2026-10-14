@@ -26,6 +26,8 @@ final class SwitcherPanel: NSPanel {
     private var size = CGSize.zero
     private var link: CADisplayLink?
     private var lastChange = Date.distantPast
+    /// Where the panel is heading, in screen coordinates; it eases there rather than jumping.
+    private var target = NSRect.zero
 
     init(model: SwitcherModel, onSelect: @escaping (CGWindowID) -> Void) {
         host = FirstClickHostingView(rootView: SwitcherView(model: model, onSelect: onSelect))
@@ -43,12 +45,14 @@ final class SwitcherPanel: NSPanel {
 
     /// `window` is the focused window's frame in Accessibility coordinates (top-left origin). Ordered
     /// directly above that window at normal level, so windows in front of it also cover the switcher.
+    /// Showing up on a new window is instant; a move on the same window glides like `follow`.
     func attach(to window: CGRect, id: CGWindowID, style: Style) {
         host.layoutSubtreeIfNeeded()
         size = host.fittingSize
         self.style = style
+        let glide = id == attachedID && isVisible
         attachedID = id
-        place(window)
+        place(window, glide: glide)
         order(.above, relativeTo: Int(id))
     }
 
@@ -57,12 +61,11 @@ final class SwitcherPanel: NSPanel {
     }
 
     /// Apps report moves at their own pace, often 10–20 times a second or only on release, while the
-    /// window server has the real frame every refresh; follow that until the window is still for 300ms.
+    /// window server has the real frame every refresh; follow that until the window is still for 300ms
+    /// and the appmarks have caught up.
     func follow() {
         lastChange = Date()
-        guard link == nil, isVisible else { return }
-        link = NSScreen.screens[0].displayLink(target: self, selector: #selector(tick))
-        link?.add(to: .main, forMode: .common)
+        startLink()
     }
 
     override func orderOut(_ sender: Any?) {
@@ -71,20 +74,39 @@ final class SwitcherPanel: NSPanel {
         super.orderOut(sender)
     }
 
-    @objc private func tick() {
+    private func startLink() {
+        guard link == nil, isVisible else { return }
+        link = NSScreen.screens[0].displayLink(target: self, selector: #selector(tick))
+        link?.add(to: .main, forMode: .common)
+    }
+
+    @objc private func tick(_ link: CADisplayLink) {
         guard let info = (CGWindowListCopyWindowInfo([.optionIncludingWindow], attachedID) as? [[String: Any]])?.first,
-              let bounds = info[kCGWindowBounds as String], let frame = CGRect(dictionaryRepresentation: bounds as! CFDictionary)
+              let bounds = info[kCGWindowBounds as String], let window = CGRect(dictionaryRepresentation: bounds as! CFDictionary)
         else { return orderOut(nil) }
-        if frame != placedFor {
-            place(frame)
+        if window != placedFor {
+            place(window, glide: true)
             lastChange = Date()
-        } else if Date().timeIntervalSince(lastChange) > 0.3 {
-            link?.invalidate()
-            link = nil
+        }
+        step(seconds: link.targetTimestamp - link.timestamp)
+        if frame.origin == target.origin, Date().timeIntervalSince(lastChange) > 0.3 {
+            link.invalidate()
+            self.link = nil
         }
     }
 
-    private func place(_ window: CGRect) {
+    /// Eases toward the target, closing most of the gap in about 0.1s, so a window that lags or
+    /// jumps mid-drag pulls the appmarks along smoothly instead of teleporting them.
+    private func step(seconds: Double) {
+        let pull = 1 - exp(-max(seconds, 1 / 240) / 0.035)
+        var origin = frame.origin
+        origin.x += (target.minX - origin.x) * pull
+        origin.y += (target.minY - origin.y) * pull
+        if abs(target.minX - origin.x) < 0.5, abs(target.minY - origin.y) < 0.5 { origin = target.origin }
+        setFrame(NSRect(origin: origin, size: target.size), display: true)
+    }
+
+    private func place(_ window: CGRect, glide: Bool) {
         placedFor = window
         var frame = style.switcherSpot.frame(size, on: window, inside: style.switcherInside,
                                              gap: style.switcherOffsetX, inset: style.switcherOffsetY)
@@ -93,7 +115,12 @@ final class SwitcherPanel: NSPanel {
         frame.origin.x = max(screen.minX, min(frame.minX, screen.maxX - frame.width))
         frame.origin.y = max(screen.minY, min(frame.minY, screen.maxY - frame.height))
         let primaryHeight = NSScreen.screens[0].frame.height
-        setFrame(NSRect(x: frame.minX, y: primaryHeight - frame.maxY, width: size.width, height: size.height), display: true)
+        target = NSRect(x: frame.minX, y: primaryHeight - frame.maxY, width: size.width, height: size.height)
+        if glide {
+            startLink()
+        } else {
+            setFrame(target, display: true)
+        }
     }
 }
 
