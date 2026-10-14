@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Appmarks</title>
+  <meta name="description" content="A personal Stage Manager for your Mac. Windows you're not using wait as thumbnails at the edge of the screen." />
+  <meta property="og:title" content="Appmarks" />
+  <meta property="og:description" content="A personal Stage Manager for your Mac." />
+  <meta property="og:type" content="website" />
+  <meta name="twitter:card" content="summary" />
+  <meta name="twitter:creator" content="@yaosamo" />
+  <link rel="icon" href="icon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="icon.svg" />
+  <style>
+    :root {
+      --ground: #E8EBF0;
+      --ink: #191C22;
+      --quiet: #5E6573;
+      --line: rgba(25, 28, 34, 0.12);
+      --key: #FFFFFF;
+      --key-edge: rgba(25, 28, 34, 0.18);
+      --stage: #D9DEE6;
+      --window: #FFFFFF;
+      --parked: #FFFFFF;
+      --mark: #F2B33D;
+      --button: #191C22;
+      --button-ink: #FFFFFF;
+      color-scheme: light;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --ground: #14171D;
+        --ink: #ECEEF2;
+        --quiet: #9199A8;
+        --line: rgba(236, 238, 242, 0.12);
+        --key: #232731;
+        --key-edge: rgba(236, 238, 242, 0.16);
+        --stage: #1E222B;
+        --window: #343A47;
+        --parked: #343A47;
+        --button: #ECEEF2;
+        --button-ink: #14171D;
+        color-scheme: dark;
+      }
+    }
+
+    * { box-sizing: border-box; }
+    html, body { margin: 0; }
+    body {
+      min-height: 100svh;
+      background: var(--ground);
+      color: var(--ink);
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", "Segoe UI", Roboto, sans-serif;
+      font-size: 15px;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* The page is laid out like the app: a narrow strip, and the stage. */
+    .page {
+      display: grid;
+      grid-template-columns: minmax(260px, 320px) minmax(0, 1fr);
+      gap: clamp(32px, 5vw, 72px);
+      height: 100svh;
+      padding: clamp(24px, 4vh, 48px) clamp(24px, 4vw, 56px);
+    }
+
+    .strip {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      min-height: 0;
+    }
+    .icon {
+      width: 88px;
+      height: 88px;
+      margin: 0 0 20px -6px;
+      filter: drop-shadow(0 10px 18px rgba(21, 26, 36, 0.28));
+    }
+    h1 {
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", sans-serif;
+      font-size: 44px;
+      line-height: 1.05;
+      font-weight: 700;
+      letter-spacing: -0.025em;
+      margin: 0 0 10px;
+    }
+    .lede {
+      text-wrap: balance;
+      font-size: 19px;
+      line-height: 1.35;
+      font-weight: 500;
+      letter-spacing: -0.01em;
+      margin: 0 0 12px;
+    }
+    .about {
+      text-wrap: pretty;
+      color: var(--quiet);
+      margin: 0 0 28px;
+      max-width: 30em;
+    }
+
+    .keys {
+      margin: 0 0 32px;
+      padding: 16px 0 0;
+      border-top: 1px solid var(--line);
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 10px 16px;
+      align-items: baseline;
+    }
+    .keys dt { white-space: nowrap; }
+    .keys dd { margin: 0; color: var(--quiet); }
+    kbd {
+      display: inline-block;
+      min-width: 1.9em;
+      padding: 1px 6px;
+      font: 500 13px/1.6 -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+      text-align: center;
+      background: var(--key);
+      border: 1px solid var(--key-edge);
+      border-bottom-width: 2px;
+      border-radius: 5px;
+    }
+    .keys .plain { font-size: 13px; font-weight: 500; }
+
+    .get {
+      align-self: flex-start;
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 11px 18px 11px 15px;
+      border-radius: 10px;
+      background: var(--button);
+      color: var(--button-ink);
+      font-weight: 600;
+      text-decoration: none;
+    }
+    .get svg { width: 18px; height: 18px; fill: currentColor; }
+    .get:hover { opacity: 0.88; }
+    .get:focus-visible, a:focus-visible {
+      outline: 2px solid var(--mark);
+      outline-offset: 3px;
+    }
+    .fine {
+      color: var(--quiet);
+      font-size: 13px;
+      margin: 12px 0 0;
+    }
+
+    /* Stage: the video, as large as fits without scrolling. */
+    .stage {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 0;
+      min-height: 0;
+    }
+    .screen {
+      position: relative;
+      width: min(100%, calc((100svh - 2 * clamp(24px, 4vh, 48px)) * 1.6));
+      aspect-ratio: 16 / 10;
+      border-radius: 14px;
+      overflow: hidden;
+      background: var(--stage);
+      box-shadow: 0 0 0 1px var(--line), 0 30px 60px -20px rgba(21, 26, 36, 0.35);
+    }
+    .screen video {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: none;
+    }
+    .screen.has-video video { display: block; }
+    .screen.has-video .sketch { display: none; }
+
+    /* Until the demo is recorded: a drawing of what it does. */
+    .sketch { position: absolute; inset: 0; }
+    .sketch .window {
+      position: absolute;
+      left: 16%; top: 16%;
+      width: 58%; height: 64%;
+      border-radius: 2.2% / 3.4%;
+      background: var(--window);
+      box-shadow: 0 0 0 1px var(--line), 0 18px 40px -18px rgba(21, 26, 36, 0.4);
+    }
+    .sketch .window::before {
+      content: "";
+      position: absolute;
+      left: 0; right: 0; top: 0;
+      height: 11%;
+      border-bottom: 1px solid var(--line);
+    }
+    .sketch .window::after {
+      content: "";
+      position: absolute;
+      right: 9%; top: -3%;
+      width: 6%; height: 30%;
+      background: var(--mark);
+      clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 82%, 0 100%);
+    }
+    .sketch .parked {
+      position: absolute;
+      right: 4%;
+      width: 12%;
+      aspect-ratio: 16 / 11;
+      border-radius: 6px;
+      background: var(--parked);
+      box-shadow: 0 0 0 1px var(--line);
+      opacity: 0.7;
+      animation: park 700ms cubic-bezier(.2, .8, .2, 1) both;
+    }
+    .sketch .parked:nth-child(2) { top: 24%; animation-delay: 300ms; }
+    .sketch .parked:nth-child(3) { top: 39%; animation-delay: 380ms; }
+    .sketch .parked:nth-child(4) { top: 54%; animation-delay: 460ms; }
+    .sketch .parked:nth-child(5) { top: 69%; animation-delay: 540ms; }
+    @keyframes park {
+      from { transform: translateX(-180%) scale(1.6); opacity: 0; }
+      to { transform: none; opacity: 0.7; }
+    }
+    .sketch p {
+      position: absolute;
+      left: 0; right: 0; bottom: 5%;
+      margin: 0;
+      text-align: center;
+      font-size: 13px;
+      color: var(--quiet);
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .sketch .parked { animation: none; }
+    }
+
+    @media (max-width: 860px) {
+      .page {
+        grid-template-columns: 1fr;
+        height: auto;
+        gap: 36px;
+        padding: 40px 16px 48px;
+      }
+      .screen { width: 100%; }
+      h1 { font-size: 38px; }
+    }
+    @media (max-height: 640px) and (min-width: 861px) {
+      .about { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <section class="strip">
+      <img class="icon" src="icon.svg" alt="" width="88" height="88" />
+      <h1>Appmarks</h1>
+      <p class="lede">A personal Stage Manager for your&nbsp;Mac.</p>
+      <p class="about">Windows you're not using wait as thumbnails at the edge of the screen. The others on stage show up as small appmarks pinned to the one you're in.</p>
+
+      <dl class="keys">
+        <dt><span class="plain">Click</span></dt>
+        <dd>Bring a window back</dd>
+        <dt><kbd>⌥</kbd> <span class="plain">Click</span></dt>
+        <dd>Park everything else</dd>
+        <dt><kbd>⌃</kbd> <kbd>⌥</kbd> <kbd>↓</kbd></dt>
+        <dd>Park the window you're in</dd>
+      </dl>
+
+      <a class="get" href="https://github.com/yaosamo/appmarks">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+        Get Appmarks on GitHub
+      </a>
+      <p class="fine">Free and open source. Needs macOS 14 or later.</p>
+    </section>
+
+    <section class="stage" aria-label="Demo">
+      <div class="screen" id="screen">
+        <video id="demo" src="demo.mp4" autoplay muted loop playsinline preload="auto" aria-label="Appmarks parking and bringing back windows"></video>
+        <div class="sketch" aria-hidden="true">
+          <div class="window"></div>
+          <div class="parked"></div>
+          <div class="parked"></div>
+          <div class="parked"></div>
+          <div class="parked"></div>
+          <p>Demo video coming soon</p>
+        </div>
+      </div>
+    </section>
+  </main>
+  <script>
+    // Show the video once it actually loads; keep the sketch if demo.mp4 is missing.
+    const screen = document.getElementById("screen");
+    const demo = document.getElementById("demo");
+    demo.addEventListener("loadeddata", () => screen.classList.add("has-video"));
+    if (demo.readyState >= 2) screen.classList.add("has-video");
+  </script>
+</body>
+</html>
