@@ -36,6 +36,7 @@ final class StageManager {
     private var capturing = false
     private var appleStageManagerWasOn = false
     private var unminimizing: Set<CGWindowID> = []
+    private var minimizeItems: [pid_t: AXUIElement] = [:]
     private lazy var panel = StripPanel(model: strip) { [weak self] id, replace in
         self?.select(id, replacingStage: replace)
     }
@@ -119,6 +120,25 @@ final class StageManager {
         park(id)
         publish()
         return true
+    }
+
+    /// Called from the event tap on ⌘M. Returns true when the focused stage window has been parked
+    /// instead of minimized, which only happens in apps whose ⌘M is Minimize.
+    func parkFocusedIfMinimizeShortcut() -> Bool {
+        guard isActive, let app = NSWorkspace.shared.frontmostApplication,
+              let id = frontmostFocusedWindowID(), stage.contains(id),
+              minimizeItem(for: app.processIdentifier)?.isEnabled == true
+        else { return false }
+        ignoreFocus(for: 1)
+        park(id)
+        publish()
+        return true
+    }
+
+    private func minimizeItem(for pid: pid_t) -> AXUIElement? {
+        if let item = minimizeItems[pid], item.title != nil { return item }
+        minimizeItems[pid] = AXUIElementCreateApplication(pid).minimizeMenuItem
+        return minimizeItems[pid]
     }
 
     /// A plain click adds the window to whatever is already on stage; Option-click swaps the stage for it.
@@ -240,6 +260,7 @@ final class StageManager {
             }
         }
         for pid in observers.keys where !livePIDs.contains(pid) { observers[pid] = nil }
+        minimizeItems = minimizeItems.filter { livePIDs.contains($0.key) }
         publish()
     }
 
