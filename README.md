@@ -24,7 +24,7 @@ Menu bar icon → **Settings…** (⌘,):
 open build/Appmarks.app
 ```
 
-On first launch, grant **Accessibility** (required, to move windows) and **Screen Recording** (optional, for live thumbnails; without it the strip shows app icons) in System Settings → Privacy & Security, then relaunch. Signing with your Apple Development identity keeps those grants across rebuilds.
+On first launch a welcome window walks through the two permissions: **Accessibility** (to move windows) and **Screen Recording** (for live thumbnails of parked windows). Each row opens the right System Settings pane and ticks itself once granted; macOS asks to reopen Appmarks after Screen Recording. Menu bar icon → **Permissions…** brings the window back. Signing with your Apple Development identity keeps those grants across rebuilds.
 
 ## Limits
 

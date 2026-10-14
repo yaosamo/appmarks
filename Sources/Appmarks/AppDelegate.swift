@@ -7,6 +7,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let manager = StageManager()
     private lazy var interceptor = EventInterceptor(manager: manager)
     private let settingsWindow = SettingsWindow()
+    private let welcomeWindow = WelcomeWindow()
     private var statusItem: NSStatusItem!
     private var toggleItem: NSMenuItem!
     private var permissionTimer: Timer?
@@ -20,6 +21,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         restoreWindowsOnSignals()
         followAppearanceSetting()
+        if !Permission.allGranted { welcomeWindow.show() }
         startWhenTrusted()
     }
 
@@ -27,12 +29,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         manager.stop()
     }
 
+    /// The welcome window asks for the permissions; this only waits for Accessibility, then starts.
     private func startWhenTrusted() {
-        let prompt = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
-        let trusted = AXIsProcessTrustedWithOptions(prompt)
+        let trusted = AXIsProcessTrusted()
         Log.write("launch: accessibility=\(trusted)")
         if trusted {
-            if !CGPreflightScreenCaptureAccess() { CGRequestScreenCaptureAccess() }
             manager.start()
             interceptor.start()
             updateMenu()
@@ -76,9 +77,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let appearance = NSMenuItem(title: "Settings…", action: #selector(showAppearance), keyEquivalent: ",")
         appearance.target = self
         menu.addItem(appearance)
-        let settings = NSMenuItem(title: "Open Privacy Settings…", action: #selector(openPrivacy), keyEquivalent: "")
-        settings.target = self
-        menu.addItem(settings)
+        let permissions = NSMenuItem(title: "Permissions…", action: #selector(showWelcome), keyEquivalent: "")
+        permissions.target = self
+        menu.addItem(permissions)
         menu.addItem(NSMenuItem(title: "Quit Appmarks", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
         statusItem.menu = menu
     }
@@ -96,7 +97,5 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func showAppearance() { settingsWindow.show() }
 
-    @objc private func openPrivacy() {
-        NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!)
-    }
+    @objc private func showWelcome() { welcomeWindow.show() }
 }
