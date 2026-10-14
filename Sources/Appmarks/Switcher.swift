@@ -258,15 +258,16 @@ private struct AppmarkLabelView: View {
     let fontSize: Double
 
     var body: some View {
+        // A notch under the strip's labels: it sits right next to small appmarks.
         Text(text)
-            .font(.system(size: fontSize, weight: .medium))
+            .font(.system(size: max(fontSize - 1, 8), weight: .medium))
             .lineLimit(1)
             .truncationMode(.middle)
-            .frame(maxWidth: 280)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(Backdrop(cornerRadius: 6))
-            .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(.primary.opacity(0.1)))
+            .frame(maxWidth: 240)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(Backdrop(cornerRadius: 5))
+            .overlay(RoundedRectangle(cornerRadius: 5).strokeBorder(.primary.opacity(0.1)))
     }
 }
 
