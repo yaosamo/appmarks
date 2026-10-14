@@ -70,7 +70,7 @@ final class StageManager {
             }
         }
         let style = Settings.shared.$style.receive(on: RunLoop.main)
-        style.map(\.stripWidth).removeDuplicates().dropFirst()
+        style.map { ($0.effectiveStripWidth, $0.stripPosition) }.removeDuplicates(by: ==).dropFirst()
             .sink { [weak self] _ in MainActor.assumeIsolated { self?.panel.reposition() } }
             .store(in: &subscriptions)
         style.map(\.refreshInterval).removeDuplicates().dropFirst()
@@ -95,7 +95,8 @@ final class StageManager {
         reconcile()
         let keep = frontmostFocusedWindowID()
         for id in Array(stage) where id != keep { park(id) }
-        if let keep, let window = windows[keep], let frame = window.element.frame, frame.minX < Geometry.stageArea.minX {
+        if let keep, let window = windows[keep], let frame = window.element.frame,
+           frame.minX < Geometry.stageArea.minX || frame.maxX > Geometry.stageArea.maxX {
             place(window, in: Geometry.centered(frame.size))
         }
         panel.orderFrontRegardless()
@@ -281,7 +282,7 @@ final class StageManager {
     /// Pins previews of the other stage windows to the focused window's corner, most recently used first.
     func updateSwitcher() {
         let style = Settings.shared.style
-        // While Appmarks' own Appearance window is focused, stay on the last window so tuning is visible.
+        // While Appmarks' own Settings window is focused, stay on the last window so tuning is visible.
         let ownWindowFocused = NSWorkspace.shared.frontmostApplication?.processIdentifier == getpid()
         guard isActive, style.showSwitcher, !isInMissionControl,
               let id = ownWindowFocused ? recentFocus.first : frontmostFocusedWindowID(), stage.contains(id),

@@ -86,14 +86,14 @@ final class SwitcherPanel: NSPanel {
 
     private func place(_ window: CGRect) {
         placedFor = window
-        let x = switch style.switcherPlacement {
-        case .outsideLeft: window.minX - style.switcherOffsetX - size.width
-        case .insideTopLeft: window.minX + style.switcherOffsetX
-        case .insideTopRight: window.maxX - style.switcherOffsetX - size.width
-        }
-        let y = window.minY + style.switcherOffsetY
+        var frame = style.switcherSpot.frame(size, on: window, inside: style.switcherInside,
+                                             gap: style.switcherOffsetX, inset: style.switcherOffsetY)
+        // Outside a window that touches a screen edge, the appmarks would otherwise hang off the screen.
+        let screen = Geometry.visibleArea
+        frame.origin.x = max(screen.minX, min(frame.minX, screen.maxX - frame.width))
+        frame.origin.y = max(screen.minY, min(frame.minY, screen.maxY - frame.height))
         let primaryHeight = NSScreen.screens[0].frame.height
-        setFrame(NSRect(x: x, y: primaryHeight - y - size.height, width: size.width, height: size.height), display: true)
+        setFrame(NSRect(x: frame.minX, y: primaryHeight - frame.maxY, width: size.width, height: size.height), display: true)
     }
 }
 
@@ -104,9 +104,10 @@ private struct SwitcherView: View {
 
     var body: some View {
         let style = settings.style
-        let layout = style.switcherVertical
-            ? AnyLayout(VStackLayout(alignment: .trailing, spacing: style.switcherSpacing))
-            : AnyLayout(HStackLayout(spacing: style.switcherSpacing))
+        let spacing = style.switcherSpacing * style.gapScale
+        let layout = style.switcherSpot.isVertical
+            ? AnyLayout(VStackLayout(alignment: style.switcherSpot.stackAlignment, spacing: spacing))
+            : AnyLayout(HStackLayout(spacing: spacing))
         layout {
             ForEach(model.items) { item in
                 SwitcherChip(item: item, style: style)
@@ -116,7 +117,8 @@ private struct SwitcherView: View {
         .padding(style.switcherBackground ? 5 : 0)
         .background {
             if style.switcherBackground {
-                RoundedRectangle(cornerRadius: style.switcherCornerRadius + 4).fill(.ultraThinMaterial)
+                Backdrop(cornerRadius: style.switcherCornerRadius + 4)
+                    .overlay(RoundedRectangle(cornerRadius: style.switcherCornerRadius + 4).strokeBorder(.primary.opacity(0.1)))
             }
         }
         .padding(style.switcherHoverScale * 4)
@@ -141,9 +143,9 @@ private struct SwitcherChip: View {
             }
             .frame(height: style.switcherHeight)
             .clipShape(RoundedRectangle(cornerRadius: style.switcherCornerRadius))
-            .overlay(RoundedRectangle(cornerRadius: style.switcherCornerRadius).stroke(.white.opacity(0.25), lineWidth: 0.5))
+            .overlay(RoundedRectangle(cornerRadius: style.switcherCornerRadius).stroke(.primary.opacity(0.15), lineWidth: 0.5))
             .shadow(color: .black.opacity(0.3), radius: 3, y: 1)
-            if style.switcherShowIcon, let icon = item.icon {
+            if style.showIcon, style.switcherShowIcon, let icon = item.icon {
                 Image(nsImage: icon).resizable()
                     .frame(width: style.switcherHeight * 0.5, height: style.switcherHeight * 0.5)
                     .offset(x: 4, y: 4)
@@ -153,5 +155,32 @@ private struct SwitcherChip: View {
         .animation(.easeOut(duration: style.hoverDuration), value: hovering)
         .onHover { hovering = $0 }
         .help(item.title)
+    }
+}
+
+/// Behind-window vibrancy, which follows the system's light or dark appearance. SwiftUI materials only
+/// blend with the panel's own clear content, so they render the same murky dark in either mode.
+private struct Backdrop: NSViewRepresentable {
+    let cornerRadius: CGFloat
+
+    func makeNSView(context: Context) -> NSVisualEffectView {
+        let view = NSVisualEffectView()
+        view.material = .popover
+        view.blendingMode = .behindWindow
+        // The panel is never key, and an inactive effect view drops its vibrancy.
+        view.state = .active
+        return view
+    }
+
+    func updateNSView(_ view: NSVisualEffectView, context: Context) {
+        let edge = cornerRadius * 2 + 1
+        let mask = NSImage(size: NSSize(width: edge, height: edge), flipped: false) { rect in
+            NSColor.black.setFill()
+            NSBezierPath(roundedRect: rect, xRadius: cornerRadius, yRadius: cornerRadius).fill()
+            return true
+        }
+        mask.capInsets = NSEdgeInsets(top: cornerRadius, left: cornerRadius, bottom: cornerRadius, right: cornerRadius)
+        mask.resizingMode = .stretch
+        view.maskImage = mask
     }
 }

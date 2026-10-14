@@ -1,5 +1,6 @@
 import AppKit
 import Carbon
+import Combine
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
@@ -10,6 +11,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var toggleItem: NSMenuItem!
     private var permissionTimer: Timer?
     private var signalSources: [DispatchSourceSignal] = []
+    private var subscriptions: Set<AnyCancellable> = []
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         buildMenu()
@@ -17,6 +19,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self?.manager.sendFocusedToStrip()
         }
         restoreWindowsOnSignals()
+        followAppearanceSetting()
         startWhenTrusted()
     }
 
@@ -53,6 +56,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    private func followAppearanceSetting() {
+        Settings.shared.$style.map(\.alwaysDark).removeDuplicates().receive(on: RunLoop.main)
+            .sink { dark in MainActor.assumeIsolated { NSApp.appearance = dark ? NSAppearance(named: .darkAqua) : nil } }
+            .store(in: &subscriptions)
+    }
+
     private func buildMenu() {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         statusItem.button?.image = NSImage(systemSymbolName: "rectangle.leadinghalf.inset.filled", accessibilityDescription: "Appmarks")
@@ -60,11 +69,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         toggleItem = NSMenuItem(title: "Pause", action: #selector(toggle), keyEquivalent: "")
         toggleItem.target = self
         menu.addItem(toggleItem)
-        let send = NSMenuItem(title: "Send Focused Window to Strip  ⌃⌥↓", action: #selector(sendToStrip), keyEquivalent: "")
+        let send = NSMenuItem(title: "Park Focused Window  ⌃⌥↓", action: #selector(sendToStrip), keyEquivalent: "")
         send.target = self
         menu.addItem(send)
         menu.addItem(.separator())
-        let appearance = NSMenuItem(title: "Appearance…", action: #selector(showAppearance), keyEquivalent: ",")
+        let appearance = NSMenuItem(title: "Settings…", action: #selector(showAppearance), keyEquivalent: ",")
         appearance.target = self
         menu.addItem(appearance)
         let settings = NSMenuItem(title: "Open Privacy Settings…", action: #selector(openPrivacy), keyEquivalent: "")

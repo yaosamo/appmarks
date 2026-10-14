@@ -2,7 +2,7 @@ import AppKit
 
 /// Everything here is in Accessibility coordinates: origin at the top-left of the primary screen.
 enum Geometry {
-    static var stripWidth: CGFloat { Settings.shared.style.stripWidth }
+    static var stripWidth: CGFloat { Settings.shared.style.effectiveStripWidth }
 
     private static var primary: NSScreen { NSScreen.screens[0] }
 
@@ -10,11 +10,13 @@ enum Geometry {
         CGRect(x: rect.minX, y: primary.frame.height - rect.maxY, width: rect.width, height: rect.height)
     }
 
+    static var visibleArea: CGRect { toAX(primary.visibleFrame) }
+
     static var stageArea: CGRect {
-        var area = toAX(primary.visibleFrame)
-        area.origin.x += stripWidth
-        area.size.width -= stripWidth
+        var area = visibleArea
         let style = Settings.shared.style
+        if !style.stripPosition.onRight { area.origin.x += stripWidth }
+        area.size.width -= stripWidth
         return area.insetBy(dx: style.stageMarginX, dy: style.stageMarginY)
     }
 

@@ -36,7 +36,9 @@ final class StripPanel: NSPanel {
 
     func reposition() {
         let visible = NSScreen.screens[0].visibleFrame
-        setFrame(NSRect(x: visible.minX, y: visible.minY, width: Geometry.stripWidth, height: visible.height), display: true)
+        let width = Geometry.stripWidth
+        let x = Settings.shared.style.stripPosition.onRight ? visible.maxX - width : visible.minX
+        setFrame(NSRect(x: x, y: visible.minY, width: width, height: visible.height), display: true)
     }
 }
 
@@ -54,7 +56,7 @@ private struct StripView: View {
         let style = settings.style
         GeometryReader { proxy in
         ScrollView(.vertical, showsIndicators: false) {
-            VStack(spacing: style.spacing) {
+            VStack(spacing: style.spacing * style.gapScale) {
                 ForEach(model.items) { item in
                     Thumbnail(item: item, style: style)
                         .onTapGesture { onSelect(item.id, NSEvent.modifierFlags.contains(.option)) }
@@ -65,12 +67,13 @@ private struct StripView: View {
                         .transition(.scale.combined(with: .opacity))
                 }
             }
-            .padding(.vertical, style.stripPadding)
-            .frame(maxWidth: .infinity, minHeight: proxy.size.height, alignment: style.centerVertically ? .center : .top)
+            .padding(.vertical, style.stripPadding * style.gapScale)
+            .frame(maxWidth: .infinity, minHeight: proxy.size.height, alignment: style.stripPosition.alignment)
         }
         }
-        .modifier(Camera(angle: style.globalPerspective ? style.angle : 0, distance: style.cameraDistance,
-                         anchor: UnitPoint(x: style.globalAnchorX, y: style.globalAnchorY)))
+        .modifier(Camera(angle: style.globalPerspective ? style.angle * style.mirror : 0, distance: style.cameraDistance,
+                         anchor: UnitPoint(x: style.stripPosition.onRight ? 1 - style.globalAnchorX : style.globalAnchorX,
+                                           y: style.globalAnchorY)))
         .animation(.spring(duration: style.reorderDuration), value: model.items.map(\.id))
     }
 }
@@ -103,10 +106,10 @@ private struct Thumbnail: View {
     @State private var hovering = false
 
     var body: some View {
-        VStack(spacing: style.labelGap) {
-            ZStack(alignment: .bottomLeading) {
+        VStack(spacing: style.labelGap * style.gapScale) {
+            ZStack(alignment: style.stripPosition.onRight ? .bottomTrailing : .bottomLeading) {
                 preview
-                    .frame(maxWidth: style.maxWidth, maxHeight: style.maxHeight)
+                    .frame(maxWidth: style.maxWidth * style.itemScale, maxHeight: style.maxHeight * style.itemScale)
                     .clipShape(RoundedRectangle(cornerRadius: style.cornerRadius))
                     .shadow(color: .black.opacity(style.shadowOpacity), radius: style.shadowRadius, y: style.shadowY)
                     .scaleEffect(x: style.squeeze, y: 1)
@@ -114,18 +117,18 @@ private struct Thumbnail: View {
                 if style.showIcon, let icon = item.icon {
                     Image(nsImage: icon)
                         .resizable()
-                        .frame(width: style.iconSize, height: style.iconSize)
+                        .frame(width: style.iconSize * style.itemScale, height: style.iconSize * style.itemScale)
                         .shadow(color: .black.opacity(0.3), radius: 3)
-                        .offset(x: style.iconOffsetX, y: style.iconOffsetY)
+                        .offset(x: style.iconOffsetX * style.mirror, y: style.iconOffsetY * style.itemScale)
                 }
             }
             if style.showLabel {
                 Text(hovering && style.titleOnHover ? item.title : item.appName)
-                    .font(.system(size: style.labelSize, weight: .medium))
+                    .font(.system(size: style.itemSize == .small ? style.labelSize - 1 : style.labelSize, weight: .medium))
                     .foregroundStyle(.white)
                     .shadow(color: .black.opacity(0.8), radius: 2)
                     .lineLimit(1)
-                    .frame(maxWidth: style.stripWidth - 30)
+                    .frame(maxWidth: style.effectiveStripWidth - 30)
             }
         }
         .scaleEffect(hovering ? style.hoverScale : 1)
@@ -137,7 +140,7 @@ private struct Thumbnail: View {
     /// Under the global camera the strip already carries `angle`, so a thumbnail only adds the hover delta.
     private var ownAngle: Double {
         let angle = hovering ? style.hoverAngle : style.angle
-        return style.globalPerspective ? angle - style.angle : angle
+        return (style.globalPerspective ? angle - style.angle : angle) * style.mirror
     }
 
     @ViewBuilder private var preview: some View {
