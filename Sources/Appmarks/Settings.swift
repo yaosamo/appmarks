@@ -9,25 +9,25 @@ struct Style: Codable, Equatable {
 
     var stripWidth = 180.0
     var stripPadding = 32.0
-    var spacing = 26.0
+    var spacing = 24.0
     var stageMarginX = 16.0
     var stageMarginY = 12.0
 
-    var maxWidth = 128.0
-    var squeeze = 1.0
+    var maxWidth = 149.0
+    var squeeze = 0.83
     var maxHeight = 96.0
     var cornerRadius = 7.0
-    var angle = 18.0
-    var hoverAngle = 0.0
-    var perspective = 0.55
-    var globalPerspective = false
+    var angle = 23.0
+    var hoverAngle = 23.0
+    var perspective = 0.68
+    var globalPerspective = true
     var globalAnchorX = 0.5
     var globalAnchorY = 0.5
     var cameraDistance = 500.0
-    var hoverScale = 1.07
+    var hoverScale = 1.03
     var shadowRadius = 10.0
-    var shadowOpacity = 0.35
-    var shadowY = 5.0
+    var shadowOpacity = 0.12
+    var shadowY = 7.0
 
     var showSwitcher = true
     var switcherSpot = WindowSpot.topLeft
@@ -42,20 +42,20 @@ struct Style: Codable, Equatable {
     var switcherShowIcon = true
 
     var showIcon = true
-    var iconSize = 34.0
-    var iconOffsetX = -10.0
+    var iconSize = 36.0
+    var iconOffsetX = -1.0
     var iconOffsetY = 12.0
 
     var showLabel = true
     var titleOnHover = true
     var labelSize = 11.0
-    var labelGap = 8.0
+    var labelGap = 7.0
 
     var hoverDuration = 0.15
     var reorderDuration = 0.3
 
     var captureWidth = 360.0
-    var refreshInterval = 2.0
+    var refreshInterval = 5.0
 
     /// Overlays whatever keys the JSON carries onto the defaults, so a partial or older paste still loads.
     static func decode(_ data: Data) -> Style? {
