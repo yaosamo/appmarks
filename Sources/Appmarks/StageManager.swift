@@ -295,9 +295,10 @@ final class StageManager {
             .sorted { (recentFocus.firstIndex(of: $0) ?? .max) < (recentFocus.firstIndex(of: $1) ?? .max) }
         guard !others.isEmpty else { return switcher.orderOut(nil) }
 
-        let items = others.compactMap { windows[$0] }.map {
-            SwitcherItem(id: $0.id, title: $0.title, icon: appInfo($0.pid).icon,
-                         thumbnail: $0.thumbnail)
+        let items = others.compactMap { windows[$0] }.map { window in
+            let app = appInfo(window.pid)
+            return SwitcherItem(id: window.id, title: window.title, appName: app.name, icon: app.icon,
+                                thumbnail: window.thumbnail)
         }
         // The 1s sync and every thumbnail refresh land here; with nothing changed, skip the relayout.
         if items == switcherModel.items, switcher.isVisible, switcher.isAttached(to: id, frame: frame, style: style) { return }
