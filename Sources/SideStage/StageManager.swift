@@ -42,6 +42,11 @@ final class StageManager {
     private(set) var isInMissionControl = false
     private var exposed: [CGWindowID] = []
     private var subscriptions: Set<AnyCancellable> = []
+    private let switcherModel = SwitcherModel()
+    private var recentFocus: [CGWindowID] = []
+    private lazy var switcher = SwitcherPanel(model: switcherModel) { [weak self] id in
+        self?.focusStageWindow(id)
+    }
     private lazy var panel = StripPanel(model: strip) { [weak self] id, replace in
         self?.select(id, replacingStage: replace)
     }
@@ -65,6 +70,9 @@ final class StageManager {
             .store(in: &subscriptions)
         style.map(\.refreshInterval).removeDuplicates().dropFirst()
             .sink { [weak self] _ in MainActor.assumeIsolated { if self?.isActive == true { self?.scheduleThumbnails() } } }
+            .store(in: &subscriptions)
+        style.dropFirst()
+            .sink { [weak self] _ in MainActor.assumeIsolated { self?.updateSwitcher() } }
             .store(in: &subscriptions)
         style.map(\.captureWidth).removeDuplicates().dropFirst()
             .sink { [weak self] _ in MainActor.assumeIsolated { self?.refreshThumbnails() } }
@@ -114,6 +122,7 @@ final class StageManager {
         }
         parked = []
         panel.orderOut(nil)
+        switcher.orderOut(nil)
         publish()
         if appleStageManagerWasOn { AppleStageManager.setEnabled(true) }
     }
@@ -183,6 +192,7 @@ final class StageManager {
         guard isActive, !isInMissionControl else { return false }
         isInMissionControl = true
         exposed = parked.filter { windows[$0]?.present == true }
+        switcher.orderOut(nil)
         for id in exposed {
             guard let window = windows[id] else { continue }
             place(window, in: window.savedOrigin.map { CGRect(origin: $0, size: window.size) } ?? Geometry.centered(window.size))
@@ -255,8 +265,41 @@ final class StageManager {
     // closing or minimising window's own notification land first, so its sibling is not dragged in.
     private func scheduleFocusCheck() {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in
-            MainActor.assumeIsolated { self?.checkFocus() }
+            MainActor.assumeIsolated {
+                self?.checkFocus()
+                self?.updateSwitcher()
+            }
         }
+    }
+
+    /// Pins previews of the other stage windows to the focused window's corner, most recently used first.
+    func updateSwitcher() {
+        let style = Settings.shared.style
+        // While SideStage's own Appearance window is focused, stay on the last window so tuning is visible.
+        let ownWindowFocused = NSWorkspace.shared.frontmostApplication?.processIdentifier == getpid()
+        guard isActive, style.showSwitcher, !isInMissionControl,
+              let id = ownWindowFocused ? recentFocus.first : frontmostFocusedWindowID(), stage.contains(id),
+              let frame = windows[id]?.element.frame
+        else { return switcher.orderOut(nil) }
+
+        recentFocus.removeAll { $0 == id || !stage.contains($0) }
+        recentFocus.insert(id, at: 0)
+        let others = stage.filter { $0 != id && windows[$0]?.present == true }
+            .sorted { (recentFocus.firstIndex(of: $0) ?? .max) < (recentFocus.firstIndex(of: $1) ?? .max) }
+        guard !others.isEmpty else { return switcher.orderOut(nil) }
+
+        switcherModel.items = others.compactMap { windows[$0] }.map {
+            SwitcherItem(id: $0.id, title: $0.title, icon: NSRunningApplication(processIdentifier: $0.pid)?.icon,
+                         thumbnail: $0.thumbnail)
+        }
+        switcher.attach(to: frame, style: style)
+    }
+
+    private func focusStageWindow(_ id: CGWindowID) {
+        guard let window = windows[id] else { return }
+        NSRunningApplication(processIdentifier: window.pid)?.activate()
+        window.element.focus(appPID: window.pid)
+        scheduleFocusCheck()
     }
 
     private func checkFocus() {
@@ -339,6 +382,7 @@ final class StageManager {
             return StripItem(id: id, title: window.title, appName: app?.localizedName ?? "",
                              icon: app?.icon, thumbnail: window.thumbnail)
         }
+        updateSwitcher()
     }
 
     private func scheduleThumbnails() {
@@ -412,7 +456,8 @@ final class StageManager {
 
     private func watch(_ window: ManagedWindow) {
         guard let observer = observers[window.pid], !watchedWindows.contains(window.id) else { return }
-        for name in [kAXUIElementDestroyedNotification, kAXWindowMiniaturizedNotification] {
+        for name in [kAXUIElementDestroyedNotification, kAXWindowMiniaturizedNotification,
+                     kAXMovedNotification, kAXResizedNotification] {
             AXObserverAddNotification(observer, window.element, name as CFString, Unmanaged.passUnretained(self).toOpaque())
         }
         watchedWindows.insert(window.id)
@@ -423,6 +468,8 @@ final class StageManager {
         case kAXFocusedWindowChangedNotification, kAXMainWindowChangedNotification:
             catchMinimizedStageWindows()
             scheduleFocusCheck()
+        case kAXMovedNotification, kAXResizedNotification:
+            updateSwitcher()
         case kAXUIElementDestroyedNotification, kAXWindowMiniaturizedNotification:
             ignoreFocus()
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in

@@ -24,6 +24,18 @@ struct Style: Codable, Equatable {
     var shadowOpacity = 0.35
     var shadowY = 5.0
 
+    var showSwitcher = true
+    var switcherPlacement = SwitcherPlacement.outsideLeft
+    var switcherVertical = true
+    var switcherOffsetX = 8.0
+    var switcherOffsetY = 0.0
+    var switcherHeight = 32.0
+    var switcherSpacing = 6.0
+    var switcherCornerRadius = 5.0
+    var switcherHoverScale = 1.15
+    var switcherBackground = true
+    var switcherShowIcon = true
+
     var showIcon = true
     var iconSize = 34.0
     var iconOffsetX = -10.0
@@ -48,6 +60,10 @@ struct Style: Codable, Equatable {
         else { return nil }
         return try? JSONDecoder().decode(Style.self, from: merged)
     }
+}
+
+enum SwitcherPlacement: String, Codable {
+    case outsideLeft, insideTopLeft, insideTopRight
 }
 
 final class Settings: ObservableObject {
@@ -134,6 +150,23 @@ private struct SettingsView: View {
                     SliderRow("Shadow radius", $settings.style.shadowRadius, 0...40)
                     SliderRow("Shadow opacity", $settings.style.shadowOpacity, 0...1, step: 0.01, digits: 2)
                     SliderRow("Shadow Y", $settings.style.shadowY, -20...30)
+                }
+                Section("Window switcher") {
+                    Toggle("Show on focused window", isOn: $settings.style.showSwitcher)
+                    Picker("Placement", selection: $settings.style.switcherPlacement) {
+                        Text("Outside, left of window").tag(SwitcherPlacement.outsideLeft)
+                        Text("Inside, top left").tag(SwitcherPlacement.insideTopLeft)
+                        Text("Inside, top right").tag(SwitcherPlacement.insideTopRight)
+                    }
+                    Toggle("Stack vertically", isOn: $settings.style.switcherVertical)
+                    SliderRow("Offset X", $settings.style.switcherOffsetX, -200...400)
+                    SliderRow("Offset Y", $settings.style.switcherOffsetY, -120...200)
+                    SliderRow("Preview height", $settings.style.switcherHeight, 16...120)
+                    SliderRow("Spacing", $settings.style.switcherSpacing, 0...30)
+                    SliderRow("Corner radius", $settings.style.switcherCornerRadius, 0...20)
+                    SliderRow("Hover scale", $settings.style.switcherHoverScale, 1...2, step: 0.01, digits: 2)
+                    Toggle("Background", isOn: $settings.style.switcherBackground)
+                    Toggle("App icon", isOn: $settings.style.switcherShowIcon)
                 }
                 Section("App icon") {
                     Toggle("Show icon", isOn: $settings.style.showIcon)

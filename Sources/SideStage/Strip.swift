@@ -37,7 +37,7 @@ final class StripPanel: NSPanel {
 }
 
 /// The panel never becomes key, so without this the first click on a thumbnail would be swallowed.
-private final class FirstClickHostingView<Content: View>: NSHostingView<Content> {
+final class FirstClickHostingView<Content: View>: NSHostingView<Content> {
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 }
 
