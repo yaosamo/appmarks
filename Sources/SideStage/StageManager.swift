@@ -128,10 +128,11 @@ final class StageManager {
         var hit: AXUIElement?
         guard AXUIElementCopyElementAtPosition(AXUIElementCreateSystemWide(), Float(point.x), Float(point.y), &hit) == .success,
               let hit, hit.subrole == kAXMinimizeButtonSubrole, hit.isEnabled,
-              let id = hit.window?.windowID, stage.contains(id)
+              let id = hit.window?.windowID, stage.contains(id), let pid = windows[id]?.pid
         else { return false }
         ignoreFocus(for: 1)
         park(id)
+        focusNextStageWindow(of: pid)
         publish()
         return true
     }
@@ -145,8 +146,15 @@ final class StageManager {
         else { return false }
         ignoreFocus(for: 1)
         park(id)
+        focusNextStageWindow(of: app.processIdentifier)
         publish()
         return true
+    }
+
+    /// The app otherwise keeps focus on the window just parked, so ⌘M twice would hit a hidden window.
+    private func focusNextStageWindow(of pid: pid_t) {
+        guard let next = stage.compactMap({ windows[$0] }).first(where: { $0.pid == pid }) else { return }
+        next.element.focus(appPID: pid)
     }
 
     private func minimizeItem(for pid: pid_t) -> AXUIElement? {
