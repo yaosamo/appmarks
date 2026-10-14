@@ -34,6 +34,7 @@ final class StageManager {
     private var ignoreFocusUntil = Date.distantPast
     private var timers: [Timer] = []
     private var capturing = false
+    private var appleStageManagerWasOn = false
     private lazy var panel = StripPanel(model: strip) { [weak self] id, replace in
         self?.select(id, replacingStage: replace)
     }
@@ -57,6 +58,8 @@ final class StageManager {
     func start() {
         guard !isActive else { return }
         isActive = true
+        appleStageManagerWasOn = AppleStageManager.isEnabled
+        if appleStageManagerWasOn { AppleStageManager.setEnabled(false) }
         reconcile()
         let keep = frontmostFocusedWindowID()
         for id in Array(stage) where id != keep { park(id) }
@@ -65,6 +68,7 @@ final class StageManager {
         }
         panel.orderFrontRegardless()
         publish()
+        Log.write("start: stage=\(stage.count) parked=\(parked.count) strip=\(strip.items.count) panel=\(panel.frame) visible=\(panel.isVisible) screenCapture=\(CGPreflightScreenCaptureAccess())")
         timers = [
             Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
                 MainActor.assumeIsolated { self?.reconcile() }
@@ -93,6 +97,7 @@ final class StageManager {
         parked = []
         panel.orderOut(nil)
         publish()
+        if appleStageManagerWasOn { AppleStageManager.setEnabled(true) }
     }
 
     /// A plain click adds the window to whatever is already on stage; Option-click swaps the stage for it.
@@ -122,6 +127,7 @@ final class StageManager {
             window.savedOrigin = frame.origin
         }
         window.element.setPosition(Geometry.parkPoint)
+        Log.write("park \(id) '\(window.title)' -> \(Geometry.parkPoint) landed \(window.element.frame.map { "\($0)" } ?? "nil")")
         stage.remove(id)
         parked.removeAll { $0 == id }
         parked.insert(id, at: 0)
@@ -186,6 +192,7 @@ final class StageManager {
                     window.title = element.title ?? window.title
                     window.present = true
                     if parked.contains(id), !Geometry.isParked(frame) {
+                        Log.write("unpark-by-move \(id) '\(window.title)' frame \(frame)")
                         parked.removeAll { $0 == id }
                         stage.insert(id)
                     }

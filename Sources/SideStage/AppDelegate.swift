@@ -24,7 +24,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func startWhenTrusted() {
         let prompt = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
-        if AXIsProcessTrustedWithOptions(prompt) {
+        let trusted = AXIsProcessTrustedWithOptions(prompt)
+        Log.write("launch: accessibility=\(trusted)")
+        if trusted {
             if !CGPreflightScreenCaptureAccess() { CGRequestScreenCaptureAccess() }
             manager.start()
             updateMenu()

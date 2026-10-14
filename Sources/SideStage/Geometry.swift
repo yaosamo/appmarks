@@ -17,15 +17,17 @@ enum Geometry {
         return area.insetBy(dx: 16, dy: 12)
     }
 
-    /// Off-stage windows sit with their top-left corner on the primary screen's bottom-right pixel,
-    /// the same trick AeroSpace uses, because macOS has no public API to hide a single window.
+    /// Off-stage windows sit with their left edge on the primary screen's last pixel column, the same
+    /// trick AeroSpace uses, because macOS has no public API to hide a single window.
     static var parkPoint: CGPoint {
         let screen = toAX(primary.frame)
         return CGPoint(x: screen.maxX - 1, y: screen.maxY - 1)
     }
 
+    /// Judged on x alone: macOS clamps the y of a parked window ~110px up so its title bar clears the
+    /// Dock, but keeps the x, and a window whose left edge is at the screen's right edge is invisible.
     static func isParked(_ frame: CGRect) -> Bool {
-        frame.minX >= parkPoint.x - 100 && frame.minY >= parkPoint.y - 100
+        frame.minX >= parkPoint.x - 8
     }
 
     static func centered(_ size: CGSize) -> CGRect {
