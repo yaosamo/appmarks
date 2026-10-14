@@ -56,7 +56,10 @@ final class StageManager {
         AXUIElementSetMessagingTimeout(AXUIElementCreateSystemWide(), 0.25)
         let center = NSWorkspace.shared.notificationCenter
         center.addObserver(forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main) { [weak self] _ in
-            MainActor.assumeIsolated { self?.scheduleFocusCheck() }
+            MainActor.assumeIsolated {
+                self?.updateSwitcher()
+                self?.scheduleFocusCheck()
+            }
         }
         for name in [NSWorkspace.didLaunchApplicationNotification, NSWorkspace.didTerminateApplicationNotification,
                      NSWorkspace.didHideApplicationNotification, NSWorkspace.didUnhideApplicationNotification] {
@@ -292,7 +295,7 @@ final class StageManager {
             SwitcherItem(id: $0.id, title: $0.title, icon: NSRunningApplication(processIdentifier: $0.pid)?.icon,
                          thumbnail: $0.thumbnail)
         }
-        switcher.attach(to: frame, style: style)
+        switcher.attach(to: frame, id: id, style: style)
     }
 
     private func focusStageWindow(_ id: CGWindowID) {
@@ -467,9 +470,10 @@ final class StageManager {
         switch notification {
         case kAXFocusedWindowChangedNotification, kAXMainWindowChangedNotification:
             catchMinimizedStageWindows()
+            updateSwitcher()
             scheduleFocusCheck()
         case kAXMovedNotification, kAXResizedNotification:
-            updateSwitcher()
+            switcher.follow()
         case kAXUIElementDestroyedNotification, kAXWindowMiniaturizedNotification:
             ignoreFocus()
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in

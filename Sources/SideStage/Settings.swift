@@ -35,6 +35,9 @@ struct Style: Codable, Equatable {
     var switcherHoverScale = 1.15
     var switcherBackground = true
     var switcherShowIcon = true
+    var switcherFadeOut = 0.12
+    var switcherFadeIn = 0.2
+    var switcherSettleDelay = 0.25
 
     var showIcon = true
     var iconSize = 34.0
@@ -167,6 +170,9 @@ private struct SettingsView: View {
                     SliderRow("Hover scale", $settings.style.switcherHoverScale, 1...2, step: 0.01, digits: 2)
                     Toggle("Background", isOn: $settings.style.switcherBackground)
                     Toggle("App icon", isOn: $settings.style.switcherShowIcon)
+                    SliderRow("Fade out on drag", $settings.style.switcherFadeOut, 0...1, step: 0.01, digits: 2, unit: "s")
+                    SliderRow("Reappear after still", $settings.style.switcherSettleDelay, 0...1.5, step: 0.05, digits: 2, unit: "s")
+                    SliderRow("Fade in", $settings.style.switcherFadeIn, 0...1, step: 0.01, digits: 2, unit: "s")
                 }
                 Section("App icon") {
                     Toggle("Show icon", isOn: $settings.style.showIcon)

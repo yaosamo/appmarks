@@ -16,11 +16,16 @@ final class SwitcherModel: ObservableObject {
 /// rather than sitting on every window, since a window behind would cover its own copy anyway.
 final class SwitcherPanel: NSPanel {
     private let host: NSView
+    private var attachedID: CGWindowID = 0
+    private var placedFor = CGRect.null
+    private var style = Style()
+    private var size = CGSize.zero
+    private var link: CADisplayLink?
+    private var lastChange = Date.distantPast
 
     init(model: SwitcherModel, onSelect: @escaping (CGWindowID) -> Void) {
         host = FirstClickHostingView(rootView: SwitcherView(model: model, onSelect: onSelect))
         super.init(contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
-        level = .floating
         collectionBehavior = [.ignoresCycle, .fullScreenAuxiliary]
         backgroundColor = .clear
         isOpaque = false
@@ -32,10 +37,59 @@ final class SwitcherPanel: NSPanel {
     override var canBecomeKey: Bool { false }
     override var canBecomeMain: Bool { false }
 
-    /// `window` is the focused window's frame in Accessibility coordinates (top-left origin).
-    func attach(to window: CGRect, style: Style) {
+    /// `window` is the focused window's frame in Accessibility coordinates (top-left origin). Ordered
+    /// directly above that window at normal level, so windows in front of it also cover the switcher.
+    func attach(to window: CGRect, id: CGWindowID, style: Style) {
         host.layoutSubtreeIfNeeded()
-        let size = host.fittingSize
+        size = host.fittingSize
+        self.style = style
+        attachedID = id
+        place(window)
+        order(.above, relativeTo: Int(id))
+        if link == nil { alphaValue = 1 }
+    }
+
+    /// Fades out while the window moves and back in once it settles. Apps report moves at their own pace,
+    /// often only 10–20 times a second, so stillness is judged on the window server's frame every refresh.
+    func follow() {
+        lastChange = Date()
+        guard link == nil, isVisible else { return }
+        fade(to: 0, over: style.switcherFadeOut)
+        link = NSScreen.screens[0].displayLink(target: self, selector: #selector(tick))
+        link?.add(to: .main, forMode: .common)
+    }
+
+    private func fade(to alpha: CGFloat, over duration: Double) {
+        ignoresMouseEvents = alpha == 0
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = duration
+            animator().alphaValue = alpha
+        }
+    }
+
+    override func orderOut(_ sender: Any?) {
+        link?.invalidate()
+        link = nil
+        super.orderOut(sender)
+    }
+
+    @objc private func tick() {
+        guard let info = (CGWindowListCopyWindowInfo([.optionIncludingWindow], attachedID) as? [[String: Any]])?.first,
+              let bounds = info[kCGWindowBounds as String], let frame = CGRect(dictionaryRepresentation: bounds as! CFDictionary)
+        else { return orderOut(nil) }
+        if frame != placedFor {
+            placedFor = frame
+            lastChange = Date()
+        } else if Date().timeIntervalSince(lastChange) > style.switcherSettleDelay {
+            link?.invalidate()
+            link = nil
+            place(frame)
+            fade(to: 1, over: style.switcherFadeIn)
+        }
+    }
+
+    private func place(_ window: CGRect) {
+        placedFor = window
         let x = switch style.switcherPlacement {
         case .outsideLeft: window.minX - style.switcherOffsetX - size.width
         case .insideTopLeft: window.minX + style.switcherOffsetX
@@ -44,7 +98,6 @@ final class SwitcherPanel: NSPanel {
         let y = window.minY + style.switcherOffsetY
         let primaryHeight = NSScreen.screens[0].frame.height
         setFrame(NSRect(x: x, y: primaryHeight - y - size.height, width: size.width, height: size.height), display: true)
-        orderFrontRegardless()
     }
 }
 
