@@ -46,26 +46,15 @@ final class SwitcherPanel: NSPanel {
         attachedID = id
         place(window)
         order(.above, relativeTo: Int(id))
-        if link == nil { alphaValue = 1 }
     }
 
-    /// Fades out while the window moves and back in once it settles. Apps report moves at their own pace,
-    /// often only 10–20 times a second, so stillness is judged on the window server's frame every refresh.
+    /// Apps report moves at their own pace, often 10–20 times a second or only on release, while the
+    /// window server has the real frame every refresh; follow that until the window is still for 300ms.
     func follow() {
         lastChange = Date()
         guard link == nil, isVisible else { return }
-        fade(to: 0, over: style.switcherFadeOut)
         link = NSScreen.screens[0].displayLink(target: self, selector: #selector(tick))
         link?.add(to: .main, forMode: .common)
-    }
-
-    private func fade(to alpha: CGFloat, over duration: Double) {
-        ignoresMouseEvents = alpha == 0
-        NSAnimationContext.runAnimationGroup { context in
-            context.duration = duration
-            context.timingFunction = CAMediaTimingFunction(name: .easeOut)
-            animator().alphaValue = alpha
-        }
     }
 
     override func orderOut(_ sender: Any?) {
@@ -79,13 +68,11 @@ final class SwitcherPanel: NSPanel {
               let bounds = info[kCGWindowBounds as String], let frame = CGRect(dictionaryRepresentation: bounds as! CFDictionary)
         else { return orderOut(nil) }
         if frame != placedFor {
-            placedFor = frame
+            place(frame)
             lastChange = Date()
-        } else if Date().timeIntervalSince(lastChange) > style.switcherSettleDelay {
+        } else if Date().timeIntervalSince(lastChange) > 0.3 {
             link?.invalidate()
             link = nil
-            place(frame)
-            fade(to: 1, over: style.switcherFadeIn)
         }
     }
 
