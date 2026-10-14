@@ -63,6 +63,7 @@ final class SwitcherPanel: NSPanel {
         ignoresMouseEvents = alpha == 0
         NSAnimationContext.runAnimationGroup { context in
             context.duration = duration
+            context.timingFunction = CAMediaTimingFunction(name: .easeOut)
             animator().alphaValue = alpha
         }
     }

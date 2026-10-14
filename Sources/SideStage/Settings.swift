@@ -35,8 +35,8 @@ struct Style: Codable, Equatable {
     var switcherHoverScale = 1.15
     var switcherBackground = true
     var switcherShowIcon = true
-    var switcherFadeOut = 0.12
-    var switcherFadeIn = 0.2
+    var switcherFadeOut = 0.04
+    var switcherFadeIn = 0.04
     var switcherSettleDelay = 0.25
 
     var showIcon = true
