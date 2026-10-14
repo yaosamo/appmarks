@@ -281,7 +281,7 @@ final class StageManager {
     /// Pins previews of the other stage windows to the focused window's corner, most recently used first.
     func updateSwitcher() {
         let style = Settings.shared.style
-        // While SideStage's own Appearance window is focused, stay on the last window so tuning is visible.
+        // While Appmarks' own Appearance window is focused, stay on the last window so tuning is visible.
         let ownWindowFocused = NSWorkspace.shared.frontmostApplication?.processIdentifier == getpid()
         guard isActive, style.showSwitcher, !isInMissionControl,
               let id = ownWindowFocused ? recentFocus.first : frontmostFocusedWindowID(), stage.contains(id),

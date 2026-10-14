@@ -55,7 +55,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func buildMenu() {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
-        statusItem.button?.image = NSImage(systemSymbolName: "rectangle.leadinghalf.inset.filled", accessibilityDescription: "SideStage")
+        statusItem.button?.image = NSImage(systemSymbolName: "rectangle.leadinghalf.inset.filled", accessibilityDescription: "Appmarks")
         let menu = NSMenu()
         toggleItem = NSMenuItem(title: "Pause", action: #selector(toggle), keyEquivalent: "")
         toggleItem.target = self
@@ -70,7 +70,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let settings = NSMenuItem(title: "Open Privacy Settings…", action: #selector(openPrivacy), keyEquivalent: "")
         settings.target = self
         menu.addItem(settings)
-        menu.addItem(NSMenuItem(title: "Quit SideStage", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
+        menu.addItem(NSMenuItem(title: "Quit Appmarks", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
         statusItem.menu = menu
     }
 

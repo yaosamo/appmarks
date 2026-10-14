@@ -1,8 +1,8 @@
 import Foundation
 
-/// Appends to ~/Library/Logs/SideStage.log, so a misbehaving session can be read back after the fact.
+/// Appends to ~/Library/Logs/Appmarks.log, so a misbehaving session can be read back after the fact.
 enum Log {
-    private static let url = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Logs/SideStage.log")
+    private static let url = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Logs/Appmarks.log")
     private static let formatter = ISO8601DateFormatter()
 
     static func write(_ message: String) {

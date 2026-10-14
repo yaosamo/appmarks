@@ -1,6 +1,6 @@
 import Foundation
 
-/// Apple's Stage Manager re-lays-out the same windows SideStage moves, so the two cannot run together.
+/// Apple's Stage Manager re-lays-out the same windows Appmarks moves, so the two cannot run together.
 /// WindowManager picks the preference up live, the same way the Control Center toggle does.
 enum AppleStageManager {
     private static let domain = "com.apple.WindowManager" as CFString

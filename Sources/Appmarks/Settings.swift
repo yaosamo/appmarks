@@ -75,8 +75,11 @@ final class Settings: ObservableObject {
         didSet { UserDefaults.standard.set(try? JSONEncoder().encode(style), forKey: Self.key) }
     }
 
+    /// Falls back to the settings saved under the app's former name, SideStage.
     private init() {
-        style = UserDefaults.standard.data(forKey: Self.key).flatMap(Style.decode) ?? Style()
+        let saved = UserDefaults.standard.data(forKey: Self.key)
+            ?? UserDefaults(suiteName: "com.yaric.sidestage")?.data(forKey: Self.key)
+        style = saved.flatMap(Style.decode) ?? Style()
     }
 
     func copy() {
@@ -104,7 +107,7 @@ final class SettingsWindow {
         if window == nil {
             let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 440, height: 760),
                                   styleMask: [.titled, .closable, .resizable, .fullSizeContentView], backing: .buffered, defer: false)
-            window.title = "SideStage Appearance"
+            window.title = "Appmarks Appearance"
             window.isReleasedWhenClosed = false
             window.level = .floating
             window.contentView = NSHostingView(rootView: SettingsView(settings: .shared))

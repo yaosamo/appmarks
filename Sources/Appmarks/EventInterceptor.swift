@@ -2,7 +2,7 @@ import Carbon
 import CoreGraphics
 import Foundation
 
-/// Active event taps for what SideStage has to see before the target app does: the minimize button and
+/// Active event taps for what Appmarks has to see before the target app does: the minimize button and
 /// ⌘M, so a window goes to the strip without the Dock's genie, and the Mission Control key, so parked
 /// windows are back on screen before Mission Control lays them out. Mouse and keyboard get separate
 /// taps so that if the keyboard one is refused the click path still works.

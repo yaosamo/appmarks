@@ -2,9 +2,9 @@
 import PackageDescription
 
 let package = Package(
-    name: "SideStage",
+    name: "Appmarks",
     platforms: [.macOS(.v14)],
     targets: [
-        .executableTarget(name: "SideStage", path: "Sources/SideStage"),
+        .executableTarget(name: "Appmarks", path: "Sources/Appmarks"),
     ]
 )
