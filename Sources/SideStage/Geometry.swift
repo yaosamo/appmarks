@@ -2,7 +2,7 @@ import AppKit
 
 /// Everything here is in Accessibility coordinates: origin at the top-left of the primary screen.
 enum Geometry {
-    static let stripWidth: CGFloat = 180
+    static var stripWidth: CGFloat { Settings.shared.style.stripWidth }
 
     private static var primary: NSScreen { NSScreen.screens[0] }
 
@@ -14,7 +14,8 @@ enum Geometry {
         var area = toAX(primary.visibleFrame)
         area.origin.x += stripWidth
         area.size.width -= stripWidth
-        return area.insetBy(dx: 16, dy: 12)
+        let style = Settings.shared.style
+        return area.insetBy(dx: style.stageMarginX, dy: style.stageMarginY)
     }
 
     /// Off-stage windows sit with their left edge on the primary screen's last pixel column, the same

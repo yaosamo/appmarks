@@ -1,5 +1,6 @@
 import AppKit
 import ApplicationServices
+import Combine
 
 final class ManagedWindow {
     let id: CGWindowID
@@ -37,6 +38,8 @@ final class StageManager {
     private var appleStageManagerWasOn = false
     private var unminimizing: Set<CGWindowID> = []
     private var minimizeItems: [pid_t: AXUIElement] = [:]
+    private var thumbnailTimer: Timer?
+    private var subscriptions: Set<AnyCancellable> = []
     private lazy var panel = StripPanel(model: strip) { [weak self] id, replace in
         self?.select(id, replacingStage: replace)
     }
@@ -54,6 +57,16 @@ final class StageManager {
                 MainActor.assumeIsolated { self?.reconcile() }
             }
         }
+        let style = Settings.shared.$style.receive(on: RunLoop.main)
+        style.map(\.stripWidth).removeDuplicates().dropFirst()
+            .sink { [weak self] _ in MainActor.assumeIsolated { self?.panel.reposition() } }
+            .store(in: &subscriptions)
+        style.map(\.refreshInterval).removeDuplicates().dropFirst()
+            .sink { [weak self] _ in MainActor.assumeIsolated { if self?.isActive == true { self?.scheduleThumbnails() } } }
+            .store(in: &subscriptions)
+        style.map(\.captureWidth).removeDuplicates().dropFirst()
+            .sink { [weak self] _ in MainActor.assumeIsolated { self?.refreshThumbnails() } }
+            .store(in: &subscriptions)
         NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.panel.reposition() }
         }
@@ -77,11 +90,8 @@ final class StageManager {
             Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
                 MainActor.assumeIsolated { self?.reconcile() }
             },
-            Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in
-                MainActor.assumeIsolated { self?.refreshThumbnails() }
-            },
         ]
-        refreshThumbnails()
+        scheduleThumbnails()
     }
 
     /// Puts every off-stage window back where it was. Runs on pause and on quit, so nothing stays stranded off-screen.
@@ -89,6 +99,8 @@ final class StageManager {
         isActive = false
         timers.forEach { $0.invalidate() }
         timers = []
+        thumbnailTimer?.invalidate()
+        thumbnailTimer = nil
         for id in parked {
             guard let window = windows[id] else { continue }
             if let origin = window.savedOrigin {
@@ -280,12 +292,20 @@ final class StageManager {
         }
     }
 
+    private func scheduleThumbnails() {
+        thumbnailTimer?.invalidate()
+        thumbnailTimer = Timer.scheduledTimer(withTimeInterval: Settings.shared.style.refreshInterval, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.refreshThumbnails() }
+        }
+        refreshThumbnails()
+    }
+
     private func refreshThumbnails() {
         guard isActive, !capturing else { return }
         capturing = true
         let ids = Set(windows.keys)
         Task { @MainActor in
-            let images = await Thumbnails.capture(ids)
+            let images = await Thumbnails.capture(ids, width: Settings.shared.style.captureWidth)
             for (id, image) in images { windows[id]?.thumbnail = image }
             capturing = false
             publish()

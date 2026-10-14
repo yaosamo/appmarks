@@ -2,9 +2,7 @@ import AppKit
 import ScreenCaptureKit
 
 enum Thumbnails {
-    private static let width: CGFloat = 360
-
-    static func capture(_ ids: Set<CGWindowID>) async -> [CGWindowID: NSImage] {
+    static func capture(_ ids: Set<CGWindowID>, width: CGFloat) async -> [CGWindowID: NSImage] {
         guard CGPreflightScreenCaptureAccess(),
               let content = try? await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: false)
         else { return [:] }

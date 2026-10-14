@@ -43,13 +43,16 @@ private final class FirstClickHostingView<Content: View>: NSHostingView<Content>
 
 private struct StripView: View {
     @ObservedObject var model: StripModel
+    @ObservedObject var settings = Settings.shared
     let onSelect: (CGWindowID, Bool) -> Void
 
     var body: some View {
+        let style = settings.style
+        GeometryReader { proxy in
         ScrollView(.vertical, showsIndicators: false) {
-            VStack(spacing: 26) {
+            VStack(spacing: style.spacing) {
                 ForEach(model.items) { item in
-                    Thumbnail(item: item)
+                    Thumbnail(item: item, style: style)
                         .onTapGesture { onSelect(item.id, NSEvent.modifierFlags.contains(.option)) }
                         .contextMenu {
                             Button("Add to Stage") { onSelect(item.id, false) }
@@ -58,42 +61,47 @@ private struct StripView: View {
                         .transition(.scale.combined(with: .opacity))
                 }
             }
-            .padding(.vertical, 32)
-            .frame(maxWidth: .infinity)
+            .padding(.vertical, style.stripPadding)
+            .frame(maxWidth: .infinity, minHeight: proxy.size.height, alignment: style.centerVertically ? .center : .top)
         }
-        .animation(.spring(duration: 0.3), value: model.items.map(\.id))
+        }
+        .animation(.spring(duration: style.reorderDuration), value: model.items.map(\.id))
     }
 }
 
 private struct Thumbnail: View {
     let item: StripItem
+    let style: Style
     @State private var hovering = false
 
     var body: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: style.labelGap) {
             ZStack(alignment: .bottomLeading) {
                 preview
-                    .frame(maxWidth: 128, maxHeight: 96)
-                    .clipShape(RoundedRectangle(cornerRadius: 7))
-                    .shadow(color: .black.opacity(0.35), radius: 10, y: 5)
-                    .rotation3DEffect(.degrees(hovering ? 0 : 18), axis: (0, 1, 0), perspective: 0.55)
-                if let icon = item.icon {
+                    .frame(maxWidth: style.maxWidth, maxHeight: style.maxHeight)
+                    .clipShape(RoundedRectangle(cornerRadius: style.cornerRadius))
+                    .shadow(color: .black.opacity(style.shadowOpacity), radius: style.shadowRadius, y: style.shadowY)
+                    .rotation3DEffect(.degrees(hovering ? style.hoverAngle : style.angle), axis: (0, 1, 0),
+                                      perspective: style.perspective)
+                if style.showIcon, let icon = item.icon {
                     Image(nsImage: icon)
                         .resizable()
-                        .frame(width: 34, height: 34)
+                        .frame(width: style.iconSize, height: style.iconSize)
                         .shadow(color: .black.opacity(0.3), radius: 3)
-                        .offset(x: -10, y: 12)
+                        .offset(x: style.iconOffsetX, y: style.iconOffsetY)
                 }
             }
-            Text(hovering ? item.title : item.appName)
-                .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(.white)
-                .shadow(color: .black.opacity(0.8), radius: 2)
-                .lineLimit(1)
-                .frame(maxWidth: 150)
+            if style.showLabel {
+                Text(hovering && style.titleOnHover ? item.title : item.appName)
+                    .font(.system(size: style.labelSize, weight: .medium))
+                    .foregroundStyle(.white)
+                    .shadow(color: .black.opacity(0.8), radius: 2)
+                    .lineLimit(1)
+                    .frame(maxWidth: style.stripWidth - 30)
+            }
         }
-        .scaleEffect(hovering ? 1.07 : 1)
-        .animation(.easeOut(duration: 0.15), value: hovering)
+        .scaleEffect(hovering ? style.hoverScale : 1)
+        .animation(.easeOut(duration: style.hoverDuration), value: hovering)
         .contentShape(Rectangle())
         .onHover { hovering = $0 }
     }
@@ -102,7 +110,7 @@ private struct Thumbnail: View {
         if let thumbnail = item.thumbnail {
             Image(nsImage: thumbnail).resizable().aspectRatio(contentMode: .fit)
         } else {
-            RoundedRectangle(cornerRadius: 7)
+            RoundedRectangle(cornerRadius: style.cornerRadius)
                 .fill(.regularMaterial)
                 .aspectRatio(1.5, contentMode: .fit)
                 .overlay(Text(item.title).font(.caption2).lineLimit(2).padding(8))

@@ -5,6 +5,7 @@ import Carbon
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private let manager = StageManager()
     private lazy var interceptor = MinimizeInterceptor(manager: manager)
+    private let settingsWindow = SettingsWindow()
     private var statusItem: NSStatusItem!
     private var toggleItem: NSMenuItem!
     private var permissionTimer: Timer?
@@ -63,6 +64,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         send.target = self
         menu.addItem(send)
         menu.addItem(.separator())
+        let appearance = NSMenuItem(title: "Appearance…", action: #selector(showAppearance), keyEquivalent: ",")
+        appearance.target = self
+        menu.addItem(appearance)
         let settings = NSMenuItem(title: "Open Privacy Settings…", action: #selector(openPrivacy), keyEquivalent: "")
         settings.target = self
         menu.addItem(settings)
@@ -80,6 +84,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func sendToStrip() { manager.sendFocusedToStrip() }
+
+    @objc private func showAppearance() { settingsWindow.show() }
 
     @objc private func openPrivacy() {
         NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!)
