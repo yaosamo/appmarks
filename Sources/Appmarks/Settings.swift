@@ -37,10 +37,9 @@ struct Style: Codable, Equatable {
     var switcherHeight = 32.0
     var switcherSpacing = 6.0
     var switcherCornerRadius = 5.0
-    var switcherHoverScale = 1.15
+    var switcherHoverScale = 1.4
     var switcherBackground = true
     var switcherShowIcon = true
-    var switcherLabel = true
 
     var showIcon = true
     var iconSize = 36.0
@@ -242,7 +241,6 @@ private struct SettingsView: View {
                             Text("Outside").tag(false)
                             Text("Inside").tag(true)
                         }
-                        Toggle("Window name on hover", isOn: $settings.style.switcherLabel)
                     }
                     .disabled(!settings.style.showSwitcher)
                 }

@@ -4,15 +4,11 @@ import SwiftUI
 struct SwitcherItem: Identifiable, Equatable {
     let id: CGWindowID
     let title: String
-    let appName: String
     let icon: NSImage?
     let thumbnail: NSImage?
 
-    /// What the hover label says: the window's title, or its app for windows without one.
-    var label: String { title.isEmpty ? appName : title }
-
     static func == (a: Self, b: Self) -> Bool {
-        a.id == b.id && a.title == b.title && a.appName == b.appName && a.thumbnail === b.thumbnail
+        a.id == b.id && a.title == b.title && a.thumbnail === b.thumbnail
     }
 }
 
@@ -24,7 +20,6 @@ final class SwitcherModel: ObservableObject {
 /// rather than sitting on every window, since a window behind would cover its own copy anyway.
 final class SwitcherPanel: NSPanel {
     private let host: NSView
-    private let label: AppmarkLabel
     private var attachedID: CGWindowID = 0
     private var placedFor = CGRect.null
     private var style = Style()
@@ -33,11 +28,7 @@ final class SwitcherPanel: NSPanel {
     private var lastChange = Date.distantPast
 
     init(model: SwitcherModel, onSelect: @escaping (CGWindowID) -> Void) {
-        let label = AppmarkLabel()
-        self.label = label
-        host = FirstClickHostingView(rootView: SwitcherView(model: model, onSelect: onSelect) { item, hovering, chip in
-            label.update(item, hovering: hovering, chip: chip)
-        })
+        host = FirstClickHostingView(rootView: SwitcherView(model: model, onSelect: onSelect))
         super.init(contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
         collectionBehavior = [.ignoresCycle, .fullScreenAuxiliary]
         backgroundColor = .clear
@@ -45,7 +36,6 @@ final class SwitcherPanel: NSPanel {
         hasShadow = false
         hidesOnDeactivate = false
         contentView = host
-        label.owner = self
     }
 
     override var canBecomeKey: Bool { false }
@@ -78,7 +68,6 @@ final class SwitcherPanel: NSPanel {
     override func orderOut(_ sender: Any?) {
         link?.invalidate()
         link = nil
-        label.hide()
         super.orderOut(sender)
     }
 
@@ -96,8 +85,6 @@ final class SwitcherPanel: NSPanel {
     }
 
     private func place(_ window: CGRect) {
-        // The label points at where an appmark was; it comes back on the next hover.
-        if window != placedFor { label.hide() }
         placedFor = window
         var frame = style.switcherSpot.frame(size, on: window, inside: style.switcherInside,
                                              gap: style.switcherOffsetX, inset: style.switcherOffsetY)
@@ -114,8 +101,6 @@ private struct SwitcherView: View {
     @ObservedObject var model: SwitcherModel
     @ObservedObject var settings = Settings.shared
     let onSelect: (CGWindowID) -> Void
-    /// The hovered appmark, whether the pointer entered or left it, and its frame in the panel.
-    let onHover: (SwitcherItem, Bool, CGRect) -> Void
 
     var body: some View {
         let style = settings.style
@@ -125,7 +110,7 @@ private struct SwitcherView: View {
             : AnyLayout(HStackLayout(spacing: spacing))
         layout {
             ForEach(model.items) { item in
-                SwitcherChip(item: item, style: style) { hovering, frame in onHover(item, hovering, frame) }
+                SwitcherChip(item: item, style: style)
                     .onTapGesture { onSelect(item.id) }
             }
         }
@@ -136,7 +121,9 @@ private struct SwitcherView: View {
                     .overlay(RoundedRectangle(cornerRadius: style.switcherCornerRadius + 4).strokeBorder(.primary.opacity(0.1)))
             }
         }
-        .padding(style.switcherHoverScale * 4)
+        // Room for a hovered appmark to grow inside the panel. Previews are up to about twice as wide
+        // as they are tall, so a side grows by at most height × (scale − 1).
+        .padding(style.switcherHeight * (style.switcherHoverScale - 1) + 4)
         .fixedSize()
     }
 }
@@ -144,9 +131,7 @@ private struct SwitcherView: View {
 private struct SwitcherChip: View {
     let item: SwitcherItem
     let style: Style
-    let onHover: (Bool, CGRect) -> Void
     @State private var hovering = false
-    @State private var frame = CGRect.zero
 
     var body: some View {
         ZStack(alignment: .bottomTrailing) {
@@ -168,106 +153,10 @@ private struct SwitcherChip: View {
                     .offset(x: 4, y: 4)
             }
         }
-        // Measured before the hover scale, so the label sits off the appmark's resting frame.
-        .background(GeometryReader { geometry in
-            Color.clear
-                .onAppear { frame = geometry.frame(in: .global) }
-                .onChange(of: geometry.frame(in: .global)) { _, new in frame = new }
-        })
         .scaleEffect(hovering ? style.switcherHoverScale : 1)
+        .zIndex(hovering ? 1 : 0)
         .animation(.easeOut(duration: style.hoverDuration), value: hovering)
-        .onHover {
-            hovering = $0
-            onHover($0, frame)
-        }
-    }
-}
-
-/// The hovered appmark's window name. It gets a panel of its own, because the appmarks' panel is
-/// sized tightly around them and would clip anything sticking out.
-final class AppmarkLabel: NSPanel {
-    weak var owner: NSWindow?
-    private let host = NSHostingView(rootView: AppmarkLabelView(text: "", fontSize: 11))
-    private var shownID: CGWindowID?
-
-    init() {
-        super.init(contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
-        collectionBehavior = [.ignoresCycle, .fullScreenAuxiliary]
-        backgroundColor = .clear
-        isOpaque = false
-        hasShadow = false
-        hidesOnDeactivate = false
-        ignoresMouseEvents = true
-        contentView = host
-    }
-
-    override var canBecomeKey: Bool { false }
-    override var canBecomeMain: Bool { false }
-
-    func hide() {
-        shownID = nil
-        orderOut(nil)
-    }
-
-    /// `chip` is in the owner's content coordinates (top-left origin). Moving straight from one appmark
-    /// to the next can report the new one's enter before the old one's exit, so an exit only hides
-    /// the label when it is for the appmark being shown.
-    func update(_ item: SwitcherItem, hovering: Bool, chip: CGRect) {
-        let style = Settings.shared.style
-        guard hovering else {
-            if shownID == item.id { hide() }
-            return
-        }
-        guard style.switcherLabel, !item.label.isEmpty, let owner else { return hide() }
-
-        host.rootView = AppmarkLabelView(text: item.label, fontSize: style.labelSize)
-        host.layoutSubtreeIfNeeded()
-        let size = host.fittingSize
-        let anchor = NSRect(x: owner.frame.minX + chip.minX, y: owner.frame.maxY - chip.maxY, width: chip.width, height: chip.height)
-        let screen = owner.screen?.visibleFrame ?? Geometry.visibleArea
-        let spot = style.switcherSpot
-        let growth = (style.switcherHoverScale - 1) / 2
-
-        // Off the side the appmarks don't continue on: beside a column, above or below a row. Outside the
-        // window that is away from it, inside it is toward the middle; flip if it would leave the screen.
-        var origin = CGPoint.zero
-        if spot.isVertical {
-            let gap = 6 + anchor.width * growth
-            var left = (spot.unit.x == 0) != style.switcherInside
-            func x(_ left: Bool) -> CGFloat { left ? anchor.minX - gap - size.width : anchor.maxX + gap }
-            if x(left) < screen.minX || x(left) + size.width > screen.maxX { left.toggle() }
-            origin = CGPoint(x: x(left), y: anchor.midY - size.height / 2)
-        } else {
-            let gap = 6 + anchor.height * growth
-            var above = (spot.unit.y == 0) != style.switcherInside
-            func y(_ above: Bool) -> CGFloat { above ? anchor.maxY + gap : anchor.minY - gap - size.height }
-            if y(above) < screen.minY || y(above) + size.height > screen.maxY { above.toggle() }
-            origin = CGPoint(x: anchor.midX - size.width / 2, y: y(above))
-        }
-        origin.x = max(screen.minX, min(origin.x, screen.maxX - size.width))
-        origin.y = max(screen.minY, min(origin.y, screen.maxY - size.height))
-
-        setFrame(NSRect(origin: origin, size: size), display: true)
-        order(.above, relativeTo: owner.windowNumber)
-        shownID = item.id
-    }
-}
-
-private struct AppmarkLabelView: View {
-    let text: String
-    let fontSize: Double
-
-    var body: some View {
-        // A notch under the strip's labels: it sits right next to small appmarks.
-        Text(text)
-            .font(.system(size: max(fontSize - 1, 8), weight: .medium))
-            .lineLimit(1)
-            .truncationMode(.middle)
-            .frame(maxWidth: 240)
-            .padding(.horizontal, 6)
-            .padding(.vertical, 2)
-            .background(Backdrop(cornerRadius: 5))
-            .overlay(RoundedRectangle(cornerRadius: 5).strokeBorder(.primary.opacity(0.1)))
+        .onHover { hovering = $0 }
     }
 }
 
