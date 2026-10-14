@@ -177,6 +177,30 @@
     .screen.has-video video { display: block; }
     .screen.has-video .sketch { display: none; }
 
+    /* Browsers only autoplay muted video. Clicking it turns sound and the controls on. */
+    .screen.muted video { cursor: pointer; }
+    .sound {
+      position: absolute;
+      right: 14px;
+      bottom: 14px;
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 7px 12px 7px 10px;
+      border: 0;
+      border-radius: 999px;
+      background: rgba(20, 23, 29, 0.62);
+      -webkit-backdrop-filter: blur(12px);
+      backdrop-filter: blur(12px);
+      color: #fff;
+      font: 500 13px/1 -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+      cursor: pointer;
+    }
+    .sound:hover { background: rgba(20, 23, 29, 0.78); }
+    .sound:focus-visible { outline: 2px solid var(--mark); outline-offset: 3px; }
+    .sound svg { width: 16px; height: 16px; }
+    .screen:not(.has-video) .sound, .screen:not(.muted) .sound { display: none; }
+
     /* Until the demo is recorded: a drawing of what it does. */
     .sketch { position: absolute; inset: 0; }
     .sketch .window {
@@ -273,11 +297,15 @@
     </section>
 
     <section class="stage" aria-label="Demo">
-      <div class="screen has-video" id="screen">
+      <div class="screen has-video muted" id="screen">
         <video id="demo" autoplay muted loop playsinline preload="auto" poster="demo-poster.jpg" aria-label="Appmarks parking and bringing back windows">
           <source src="demo-av1.mp4" type='video/mp4; codecs="av01.0.09M.10"' />
           <source src="demo.mp4" type="video/mp4" />
         </video>
+        <button class="sound" id="sound" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H2v6h4l5 4z"/><path d="m22 9-6 6"/><path d="m16 9 6 6"/></svg>
+          Click for sound
+        </button>
         <div class="sketch" aria-hidden="true">
           <div class="window"></div>
           <div class="parked"></div>
@@ -294,6 +322,20 @@
     const screen = document.getElementById("screen");
     document.querySelector("#demo source:last-of-type")
       .addEventListener("error", () => screen.classList.remove("has-video"));
+
+    // A click on the muted video (or the hint) turns sound on and hands over to the native
+    // controls, so it can be paused and scrubbed from then on.
+    const demo = document.getElementById("demo");
+    function listen(event) {
+      if (!screen.classList.contains("muted")) return;
+      event.preventDefault();
+      screen.classList.remove("muted");
+      demo.muted = false;
+      demo.controls = true;
+      demo.play();
+    }
+    demo.addEventListener("click", listen);
+    document.getElementById("sound").addEventListener("click", listen);
   </script>
 </body>
 </html>
