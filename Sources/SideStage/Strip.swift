@@ -7,12 +7,9 @@ struct StripItem: Identifiable, Equatable {
     let appName: String
     let icon: NSImage?
     let thumbnail: NSImage?
-    /// Hidden rather than removed while dragged out: removing it would tear down the view that owns the drag.
-    let isCarried: Bool
 
     static func == (a: Self, b: Self) -> Bool {
         a.id == b.id && a.title == b.title && a.appName == b.appName && a.thumbnail === b.thumbnail
-            && a.isCarried == b.isCarried
     }
 }
 
@@ -21,8 +18,7 @@ final class StripModel: ObservableObject {
 }
 
 final class StripPanel: NSPanel {
-    init(model: StripModel, onSelect: @escaping (CGWindowID, Bool) -> Void,
-         onDrag: @escaping (CGWindowID, _ ended: Bool) -> Void) {
+    init(model: StripModel, onSelect: @escaping (CGWindowID, Bool) -> Void) {
         super.init(contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
         // Just above the desktop icons, so every open window covers the strip, as Apple's Stage Manager does.
         level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.desktopIconWindow)) + 1)
@@ -31,7 +27,7 @@ final class StripPanel: NSPanel {
         isOpaque = false
         hasShadow = false
         hidesOnDeactivate = false
-        contentView = FirstClickHostingView(rootView: StripView(model: model, onSelect: onSelect, onDrag: onDrag))
+        contentView = FirstClickHostingView(rootView: StripView(model: model, onSelect: onSelect))
         reposition()
     }
 
@@ -53,7 +49,6 @@ private struct StripView: View {
     @ObservedObject var model: StripModel
     @ObservedObject var settings = Settings.shared
     let onSelect: (CGWindowID, Bool) -> Void
-    let onDrag: (CGWindowID, Bool) -> Void
 
     var body: some View {
         let style = settings.style
@@ -63,9 +58,6 @@ private struct StripView: View {
                 ForEach(model.items) { item in
                     Thumbnail(item: item, style: style)
                         .onTapGesture { onSelect(item.id, NSEvent.modifierFlags.contains(.option)) }
-                        .gesture(DragGesture(minimumDistance: 8)
-                            .onChanged { _ in onDrag(item.id, false) }
-                            .onEnded { _ in onDrag(item.id, true) })
                         .contextMenu {
                             Button("Add to Stage") { onSelect(item.id, false) }
                             Button("Show Only This Window") { onSelect(item.id, true) }
@@ -137,7 +129,6 @@ private struct Thumbnail: View {
             }
         }
         .scaleEffect(hovering ? style.hoverScale : 1)
-        .opacity(item.isCarried ? 0 : 1)
         .animation(.easeOut(duration: style.hoverDuration), value: hovering)
         .contentShape(Rectangle())
         .onHover { hovering = $0 }

@@ -10,10 +10,6 @@ enum Geometry {
         CGRect(x: rect.minX, y: primary.frame.height - rect.maxY, width: rect.width, height: rect.height)
     }
 
-    static func toAXPoint(_ point: NSPoint) -> CGPoint {
-        CGPoint(x: point.x, y: primary.frame.height - point.y)
-    }
-
     static var stageArea: CGRect {
         var area = toAX(primary.visibleFrame)
         area.origin.x += stripWidth

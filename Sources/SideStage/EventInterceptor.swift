@@ -15,10 +15,6 @@ final class EventInterceptor {
     private let manager: StageManager
     private var taps: [CFMachPort] = []
     private var swallowMouseUp = false
-    private var mouseDownAt: CGPoint?
-    private var draggedWindow: CGWindowID?
-    private var dragChecked = false
-    private var carrying = false
 
     init(manager: StageManager) {
         self.manager = manager
@@ -26,7 +22,7 @@ final class EventInterceptor {
 
     func start() {
         guard taps.isEmpty else { return }
-        addTap(for: [.leftMouseDown, .leftMouseUp, .leftMouseDragged])
+        addTap(for: [.leftMouseDown, .leftMouseUp])
         addTap(for: [.keyDown])
     }
 
@@ -53,15 +49,6 @@ final class EventInterceptor {
             taps.forEach { CGEvent.tapEnable(tap: $0, enable: true) }
         case _ where event.getIntegerValueField(.eventSourceUserData) == Self.replayMark:
             break
-        case .leftMouseDragged where carrying:
-            manager.carry(to: event.location)
-            return nil
-        case .leftMouseUp where carrying:
-            carrying = false
-            manager.endCarry(at: event.location)
-            mouseDownAt = nil
-            draggedWindow = nil
-            return nil
         case .leftMouseDown where manager.isInMissionControl:
             manager.scheduleMissionControlEnd()
         case .keyDown where manager.isInMissionControl:
@@ -75,53 +62,12 @@ final class EventInterceptor {
         case .leftMouseUp where swallowMouseUp:
             swallowMouseUp = false
             return nil
-        case .leftMouseDown:
-            mouseDownAt = event.location
-            draggedWindow = nil
-            dragChecked = false
-        case .leftMouseDragged:
-            trackWindowDrag(to: event.location)
-            if let id = draggedWindow, let start = mouseDownAt, manager.dragProgress(at: event.location.x) > 0,
-               manager.beginCarry(id, at: event.location, startedAt: start) {
-                carrying = true
-                endNativeDrag(at: event.location)
-                return nil
-            }
-        case .leftMouseUp where manager.isCarrying:
-            // A thumbnail dragged out of the strip; SwiftUI also reports the end, and the second call is a no-op.
-            manager.endCarry(at: event.location)
-        case .leftMouseUp:
-            if let id = draggedWindow, let start = mouseDownAt {
-                manager.windowDragEnded(id, at: event.location,
-                                        movedBy: CGVector(dx: event.location.x - start.x, dy: event.location.y - start.y))
-            }
-            mouseDownAt = nil
-            draggedWindow = nil
         case .keyDown where isCommandM(event) && manager.parkFocusedIfMinimizeShortcut():
             return nil
         default:
             break
         }
         return Unmanaged.passUnretained(event)
-    }
-
-    /// Drag events arrive at pointer rate, so the one Accessibility lookup (is this a title-bar drag?)
-    /// happens once per drag, after the pointer has travelled far enough to rule out a click.
-    private func trackWindowDrag(to point: CGPoint) {
-        guard let start = mouseDownAt else { return }
-        if !dragChecked, hypot(point.x - start.x, point.y - start.y) > 6 {
-            dragChecked = true
-            draggedWindow = manager.stageWindowTitleBar(at: start)
-            if let draggedWindow { manager.prepareCarry(draggedWindow) }
-        }
-    }
-
-    /// A synthetic mouse-up ends the window server's (or the app's) own drag loop, so the real window stops
-    /// following the pointer while SideStage carries its stand-in. Marked so this tap lets it through.
-    private func endNativeDrag(at point: CGPoint) {
-        guard let up = CGEvent(mouseEventSource: nil, mouseType: .leftMouseUp, mouseCursorPosition: point, mouseButton: .left) else { return }
-        up.setIntegerValueField(.eventSourceUserData, value: Self.replayMark)
-        up.post(tap: .cghidEventTap)
     }
 
     /// Re-sends the Mission Control key once the parked windows are back on screen, marked so it passes.
