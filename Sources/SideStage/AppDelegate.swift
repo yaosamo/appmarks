@@ -4,7 +4,7 @@ import Carbon
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private let manager = StageManager()
-    private lazy var interceptor = MinimizeInterceptor(manager: manager)
+    private lazy var interceptor = EventInterceptor(manager: manager)
     private let settingsWindow = SettingsWindow()
     private var statusItem: NSStatusItem!
     private var toggleItem: NSMenuItem!

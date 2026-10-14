@@ -39,6 +39,8 @@ final class StageManager {
     private var unminimizing: Set<CGWindowID> = []
     private var minimizeItems: [pid_t: AXUIElement] = [:]
     private var thumbnailTimer: Timer?
+    private(set) var isInMissionControl = false
+    private var exposed: [CGWindowID] = []
     private var subscriptions: Set<AnyCancellable> = []
     private lazy var panel = StripPanel(model: strip) { [weak self] id, replace in
         self?.select(id, replacingStage: replace)
@@ -166,6 +168,44 @@ final class StageManager {
         publish()
     }
 
+    // Mission Control lays windows out around where they sit, so parked windows past the screen's right
+    // edge stretch its layout to twice the screen and shrink every tile. macOS 27 exposes no signal that
+    // Mission Control is open, so the event tap calls this on the key that opens it, before Dock sees it.
+    func beginMissionControl() -> Bool {
+        guard isActive, !isInMissionControl else { return false }
+        isInMissionControl = true
+        exposed = parked.filter { windows[$0]?.present == true }
+        for id in exposed {
+            guard let window = windows[id] else { continue }
+            place(window, in: window.savedOrigin.map { CGRect(origin: $0, size: window.size) } ?? Geometry.centered(window.size))
+        }
+        return true
+    }
+
+    /// Mission Control closes on the click or key that follows; give its zoom-out time to finish, then keep
+    /// the window it chose on stage and send the rest back to the strip.
+    func scheduleMissionControlEnd() {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.7) { [weak self] in
+            MainActor.assumeIsolated { self?.endMissionControl() }
+        }
+    }
+
+    private func endMissionControl() {
+        guard isInMissionControl else { return }
+        isInMissionControl = false
+        let chosen = frontmostFocusedWindowID()
+        for id in exposed where id != chosen {
+            windows[id]?.element.setPosition(Geometry.parkPoint)
+        }
+        if let chosen, exposed.contains(chosen) {
+            parked.removeAll { $0 == chosen }
+            stage.insert(chosen)
+        }
+        exposed = []
+        ignoreFocus()
+        publish()
+    }
+
     func sendFocusedToStrip() {
         guard isActive, let id = frontmostFocusedWindowID(), stage.contains(id) else { return }
         ignoreFocus()
@@ -212,7 +252,7 @@ final class StageManager {
     }
 
     private func checkFocus() {
-        guard isActive, Date() > ignoreFocusUntil,
+        guard isActive, !isInMissionControl, Date() > ignoreFocusUntil,
               let id = frontmostFocusedWindowID(), let window = windows[id], !stage.contains(id)
         else { return }
         bringToStage(window)
@@ -225,6 +265,7 @@ final class StageManager {
     }
 
     func reconcile() {
+        guard !isInMissionControl else { return }
         catchMinimizedStageWindows()
         let apps = NSWorkspace.shared.runningApplications.filter {
             $0.activationPolicy == .regular && !$0.isHidden && $0.processIdentifier != getpid()
@@ -315,7 +356,7 @@ final class StageManager {
     // Focus leaves a window the moment its minimize starts, while kAXWindowMiniaturizedNotification only
     // arrives once the genie has finished, so focus changes and the sync tick are where minimize is caught.
     private func catchMinimizedStageWindows() {
-        guard isActive else { return }
+        guard isActive, !isInMissionControl else { return }
         for id in Array(stage) where windows[id]?.element.isMinimized == true {
             parkMinimized(id)
         }
