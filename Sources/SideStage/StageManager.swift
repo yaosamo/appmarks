@@ -39,6 +39,8 @@ final class StageManager {
     private var unminimizing: Set<CGWindowID> = []
     private var minimizeItems: [pid_t: AXUIElement] = [:]
     private var thumbnailTimer: Timer?
+    private var thumbnailTick = 0
+    private var appInfoCache: [pid_t: (name: String, icon: NSImage?)] = [:]
     private(set) var isInMissionControl = false
     private var exposed: [CGWindowID] = []
     private var subscriptions: Set<AnyCancellable> = []
@@ -141,9 +143,10 @@ final class StageManager {
     /// Called from the event tap on every left click, before the target app sees it. Returns true when the
     /// click landed on a stage window's minimize button and that window has been parked instead.
     func parkIfMinimizeButton(at point: CGPoint) -> Bool {
-        let titleBars = stage.compactMap { windows[$0]?.element.frame }
-            .map { CGRect(x: $0.minX, y: $0.minY, width: 100, height: 56) }
-        guard isActive, titleBars.contains(where: { $0.contains(point) }) else { return false }
+        guard isActive else { return false }
+        // Runs on every click system-wide, so the cheap window-server frames gate the Accessibility hit test.
+        let titleBars = WindowServer.frames(of: Array(stage)).map { CGRect(x: $0.minX, y: $0.minY, width: 100, height: 56) }
+        guard titleBars.contains(where: { $0.contains(point) }) else { return false }
 
         var hit: AXUIElement?
         guard AXUIElementCopyElementAtPosition(AXUIElementCreateSystemWide(), Float(point.x), Float(point.y), &hit) == .success,
@@ -301,13 +304,11 @@ final class StageManager {
                           height: carried.size.height + (target.height - carried.size.height) * p)
         let origin = CGPoint(x: point.x - carried.grab.x * size.width, y: point.y - carried.grab.y * size.height)
         proxy.update(frame: CGRect(origin: origin, size: size), progress: p, style: style)
-        setDropTarget(point.x < Geometry.stripWidth)
     }
 
     /// Over the strip the window stays parked; anywhere else it comes back full size under the pointer.
     func endCarry(at point: CGPoint) {
         proxy.orderOut(nil)
-        setDropTarget(false)
         guard let carried, let window = windows[carried.id] else { return }
         self.carried = nil
         proxyImages[carried.id] = nil
@@ -327,14 +328,9 @@ final class StageManager {
         publish()
     }
 
-    func setDropTarget(_ on: Bool) {
-        if strip.isDropTarget != on { strip.isDropTarget = on }
-    }
-
     /// A window dragged by its title bar and released over the strip is parked. It remembers where it
     /// was before the drag, so it comes back there rather than at the strip's edge.
     func windowDragEnded(_ id: CGWindowID, at point: CGPoint, movedBy delta: CGVector) {
-        setDropTarget(false)
         guard isActive, point.x < Geometry.stripWidth, stage.contains(id), let window = windows[id] else { return }
         let frame = window.element.frame
         ignoreFocus(for: 1)
@@ -408,10 +404,13 @@ final class StageManager {
             .sorted { (recentFocus.firstIndex(of: $0) ?? .max) < (recentFocus.firstIndex(of: $1) ?? .max) }
         guard !others.isEmpty else { return switcher.orderOut(nil) }
 
-        switcherModel.items = others.compactMap { windows[$0] }.map {
-            SwitcherItem(id: $0.id, title: $0.title, icon: NSRunningApplication(processIdentifier: $0.pid)?.icon,
+        let items = others.compactMap { windows[$0] }.map {
+            SwitcherItem(id: $0.id, title: $0.title, icon: appInfo($0.pid).icon,
                          thumbnail: $0.thumbnail)
         }
+        // The 1s sync and every thumbnail refresh land here; with nothing changed, skip the relayout.
+        if items == switcherModel.items, switcher.isVisible, switcher.isAttached(to: id, frame: frame, style: style) { return }
+        if items != switcherModel.items { switcherModel.items = items }
         switcher.attach(to: frame, id: id, style: style)
     }
 
@@ -485,6 +484,7 @@ final class StageManager {
         }
         for pid in observers.keys where !livePIDs.contains(pid) { observers[pid] = nil }
         minimizeItems = minimizeItems.filter { livePIDs.contains($0.key) }
+        appInfoCache = appInfoCache.filter { livePIDs.contains($0.key) }
         publish()
     }
 
@@ -495,13 +495,23 @@ final class StageManager {
         watchedWindows.remove(id)
     }
 
+    /// An app's name and icon never change while it runs, and looking them up costs a sysctl and a bundle
+    /// read, which every redraw used to pay per item.
+    private func appInfo(_ pid: pid_t) -> (name: String, icon: NSImage?) {
+        if let cached = appInfoCache[pid] { return cached }
+        let app = NSRunningApplication(processIdentifier: pid)
+        let info = (name: app?.localizedName ?? "", icon: app?.icon)
+        appInfoCache[pid] = info
+        return info
+    }
+
     private func publish() {
-        strip.items = parked.compactMap { id in
+        let items = parked.compactMap { id -> StripItem? in
             guard let window = windows[id], window.present else { return nil }
-            let app = NSRunningApplication(processIdentifier: window.pid)
-            return StripItem(id: id, title: window.title, appName: app?.localizedName ?? "",
-                             icon: app?.icon, thumbnail: window.thumbnail)
+            let app = appInfo(window.pid)
+            return StripItem(id: id, title: window.title, appName: app.name, icon: app.icon, thumbnail: window.thumbnail)
         }
+        if items != strip.items { strip.items = items }
         updateSwitcher()
     }
 
@@ -516,7 +526,11 @@ final class StageManager {
     private func refreshThumbnails() {
         guard isActive, !capturing else { return }
         capturing = true
-        let ids = Set(windows.keys)
+        // Stage windows feed the switcher and change constantly; parked ones sit off-screen and rarely do,
+        // so they are refreshed every fifth tick, and as soon as one has no thumbnail yet.
+        thumbnailTick += 1
+        let includeParked = thumbnailTick % 5 == 1
+        let ids = Set(windows.keys.filter { stage.contains($0) || includeParked || windows[$0]?.thumbnail == nil })
         Task { @MainActor in
             let images = await Thumbnails.capture(ids, width: Settings.shared.style.captureWidth)
             for (id, image) in images { windows[id]?.thumbnail = image }

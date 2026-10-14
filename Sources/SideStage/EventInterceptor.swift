@@ -111,7 +111,6 @@ final class EventInterceptor {
             draggedWindow = manager.stageWindowTitleBar(at: start)
             if let draggedWindow { manager.prepareCarry(draggedWindow) }
         }
-        if draggedWindow != nil { manager.setDropTarget(point.x < Geometry.stripWidth) }
     }
 
     /// A synthetic mouse-up ends the window server's (or the app's) own drag loop, so the real window stops

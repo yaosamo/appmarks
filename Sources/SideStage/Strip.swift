@@ -1,17 +1,20 @@
 import AppKit
 import SwiftUI
 
-struct StripItem: Identifiable {
+struct StripItem: Identifiable, Equatable {
     let id: CGWindowID
     let title: String
     let appName: String
     let icon: NSImage?
     let thumbnail: NSImage?
+
+    static func == (a: Self, b: Self) -> Bool {
+        a.id == b.id && a.title == b.title && a.appName == b.appName && a.thumbnail === b.thumbnail
+    }
 }
 
 final class StripModel: ObservableObject {
     @Published var items: [StripItem] = []
-    @Published var isDropTarget = false
 }
 
 final class StripPanel: NSPanel {
@@ -70,12 +73,6 @@ private struct StripView: View {
             .padding(.vertical, style.stripPadding)
             .frame(maxWidth: .infinity, minHeight: proxy.size.height, alignment: style.centerVertically ? .center : .top)
         }
-        }
-        .background {
-            RoundedRectangle(cornerRadius: 16)
-                .fill(.white.opacity(model.isDropTarget ? 0.18 : 0))
-                .padding(6)
-                .animation(.easeOut(duration: 0.12), value: model.isDropTarget)
         }
         .modifier(Camera(angle: style.globalPerspective ? style.angle : 0, distance: style.cameraDistance,
                          anchor: UnitPoint(x: style.globalAnchorX, y: style.globalAnchorY)))

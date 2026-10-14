@@ -1,11 +1,15 @@
 import AppKit
 import SwiftUI
 
-struct SwitcherItem: Identifiable {
+struct SwitcherItem: Identifiable, Equatable {
     let id: CGWindowID
     let title: String
     let icon: NSImage?
     let thumbnail: NSImage?
+
+    static func == (a: Self, b: Self) -> Bool {
+        a.id == b.id && a.title == b.title && a.thumbnail === b.thumbnail
+    }
 }
 
 final class SwitcherModel: ObservableObject {
@@ -46,6 +50,10 @@ final class SwitcherPanel: NSPanel {
         attachedID = id
         place(window)
         order(.above, relativeTo: Int(id))
+    }
+
+    func isAttached(to id: CGWindowID, frame: CGRect, style: Style) -> Bool {
+        attachedID == id && placedFor == frame && self.style == style
     }
 
     /// Apps report moves at their own pace, often 10–20 times a second or only on release, while the

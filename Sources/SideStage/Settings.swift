@@ -11,7 +11,7 @@ struct Style: Codable, Equatable {
 
     var maxWidth = 128.0
     var squeeze = 1.0
-    var dragTransition = 500.0
+    var dragTransition = 170.0
     var maxHeight = 96.0
     var cornerRadius = 7.0
     var angle = 18.0
