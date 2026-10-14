@@ -11,10 +11,12 @@ struct StripItem: Identifiable {
 
 final class StripModel: ObservableObject {
     @Published var items: [StripItem] = []
+    @Published var isDropTarget = false
 }
 
 final class StripPanel: NSPanel {
-    init(model: StripModel, onSelect: @escaping (CGWindowID, Bool) -> Void) {
+    init(model: StripModel, onSelect: @escaping (CGWindowID, Bool) -> Void,
+         onDrag: @escaping (CGWindowID, _ ended: Bool) -> Void) {
         super.init(contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
         // Just above the desktop icons, so every open window covers the strip, as Apple's Stage Manager does.
         level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.desktopIconWindow)) + 1)
@@ -23,7 +25,7 @@ final class StripPanel: NSPanel {
         isOpaque = false
         hasShadow = false
         hidesOnDeactivate = false
-        contentView = FirstClickHostingView(rootView: StripView(model: model, onSelect: onSelect))
+        contentView = FirstClickHostingView(rootView: StripView(model: model, onSelect: onSelect, onDrag: onDrag))
         reposition()
     }
 
@@ -45,6 +47,7 @@ private struct StripView: View {
     @ObservedObject var model: StripModel
     @ObservedObject var settings = Settings.shared
     let onSelect: (CGWindowID, Bool) -> Void
+    let onDrag: (CGWindowID, Bool) -> Void
 
     var body: some View {
         let style = settings.style
@@ -54,6 +57,9 @@ private struct StripView: View {
                 ForEach(model.items) { item in
                     Thumbnail(item: item, style: style)
                         .onTapGesture { onSelect(item.id, NSEvent.modifierFlags.contains(.option)) }
+                        .gesture(DragGesture(minimumDistance: 8)
+                            .onChanged { _ in onDrag(item.id, false) }
+                            .onEnded { _ in onDrag(item.id, true) })
                         .contextMenu {
                             Button("Add to Stage") { onSelect(item.id, false) }
                             Button("Show Only This Window") { onSelect(item.id, true) }
@@ -64,6 +70,12 @@ private struct StripView: View {
             .padding(.vertical, style.stripPadding)
             .frame(maxWidth: .infinity, minHeight: proxy.size.height, alignment: style.centerVertically ? .center : .top)
         }
+        }
+        .background {
+            RoundedRectangle(cornerRadius: 16)
+                .fill(.white.opacity(model.isDropTarget ? 0.18 : 0))
+                .padding(6)
+                .animation(.easeOut(duration: 0.12), value: model.isDropTarget)
         }
         .modifier(Camera(angle: style.globalPerspective ? style.angle : 0, distance: style.cameraDistance,
                          anchor: UnitPoint(x: style.globalAnchorX, y: style.globalAnchorY)))
@@ -105,6 +117,7 @@ private struct Thumbnail: View {
                     .frame(maxWidth: style.maxWidth, maxHeight: style.maxHeight)
                     .clipShape(RoundedRectangle(cornerRadius: style.cornerRadius))
                     .shadow(color: .black.opacity(style.shadowOpacity), radius: style.shadowRadius, y: style.shadowY)
+                    .scaleEffect(x: style.squeeze, y: 1)
                     .rotation3DEffect(.degrees(ownAngle), axis: (0, 1, 0), perspective: style.perspective)
                 if style.showIcon, let icon = item.icon {
                     Image(nsImage: icon)

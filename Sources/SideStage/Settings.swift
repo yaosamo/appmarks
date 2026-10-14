@@ -10,6 +10,7 @@ struct Style: Codable, Equatable {
     var stageMarginY = 12.0
 
     var maxWidth = 128.0
+    var squeeze = 1.0
     var maxHeight = 96.0
     var cornerRadius = 7.0
     var angle = 18.0
@@ -135,6 +136,7 @@ private struct SettingsView: View {
                 Section("Thumbnail") {
                     SliderRow("Max width", $settings.style.maxWidth, 60...300)
                     SliderRow("Max height", $settings.style.maxHeight, 40...240)
+                    SliderRow("Width squeeze", $settings.style.squeeze, 0.2...1, step: 0.01, digits: 2)
                     SliderRow("Corner radius", $settings.style.cornerRadius, 0...30)
                     SliderRow("Angle", $settings.style.angle, -60...60, unit: "°")
                     SliderRow("Hover angle", $settings.style.hoverAngle, -60...60, unit: "°")

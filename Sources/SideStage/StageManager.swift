@@ -47,9 +47,12 @@ final class StageManager {
     private lazy var switcher = SwitcherPanel(model: switcherModel) { [weak self] id in
         self?.focusStageWindow(id)
     }
-    private lazy var panel = StripPanel(model: strip) { [weak self] id, replace in
+    private lazy var panel = StripPanel(model: strip, onSelect: { [weak self] id, replace in
         self?.select(id, replacingStage: replace)
-    }
+    }, onDrag: { [weak self] id, ended in
+        self?.dragThumbnail(id, ended: ended)
+    })
+    private let ghost = DragGhost()
 
     init() {
         // A hung app must not stall every click passing through the event tap.
@@ -224,6 +227,52 @@ final class StageManager {
         }
         exposed = []
         ignoreFocus()
+        publish()
+    }
+
+    /// Dragging a thumbnail out of the strip drops its window onto the stage, centred under the pointer.
+    func dragThumbnail(_ id: CGWindowID, ended: Bool) {
+        let point = NSEvent.mouseLocation
+        guard ended else { return ghost.show(windows[id]?.thumbnail, at: point) }
+        ghost.orderOut(nil)
+        guard isActive, point.x > Geometry.stripWidth, let window = windows[id] else { return }
+        let drop = Geometry.toAXPoint(point)
+        let area = Geometry.stageArea
+        let size = CGSize(width: min(window.size.width, area.width), height: min(window.size.height, area.height))
+        let x = min(max(drop.x - size.width / 2, area.minX), area.maxX - size.width)
+        let y = min(max(drop.y - size.height / 2, area.minY), area.maxY - size.height)
+        ignoreFocus()
+        place(window, in: CGRect(origin: CGPoint(x: x, y: y), size: size))
+        parked.removeAll { $0 == id }
+        stage.insert(id)
+        NSRunningApplication(processIdentifier: window.pid)?.activate()
+        window.element.focus(appPID: window.pid)
+        publish()
+    }
+
+    /// The stage window whose title bar sits under `point`, i.e. the one a drag starting there moves.
+    func stageWindowTitleBar(at point: CGPoint) -> CGWindowID? {
+        guard isActive, let id = frontmostFocusedWindowID(), stage.contains(id),
+              let frame = windows[id]?.element.frame,
+              CGRect(x: frame.minX, y: frame.minY, width: frame.width, height: 60).contains(point)
+        else { return nil }
+        return id
+    }
+
+    func setDropTarget(_ on: Bool) {
+        if strip.isDropTarget != on { strip.isDropTarget = on }
+    }
+
+    /// A window dragged by its title bar and released over the strip is parked. It remembers where it
+    /// was before the drag, so it comes back there rather than at the strip's edge.
+    func windowDragEnded(_ id: CGWindowID, at point: CGPoint, movedBy delta: CGVector) {
+        setDropTarget(false)
+        guard isActive, point.x < Geometry.stripWidth, stage.contains(id), let window = windows[id] else { return }
+        let frame = window.element.frame
+        ignoreFocus(for: 1)
+        park(id)
+        if let frame { window.savedOrigin = CGPoint(x: frame.minX - delta.dx, y: frame.minY - delta.dy) }
+        focusNextStageWindow(of: window.pid)
         publish()
     }
 

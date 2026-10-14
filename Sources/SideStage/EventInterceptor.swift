@@ -15,6 +15,9 @@ final class EventInterceptor {
     private let manager: StageManager
     private var taps: [CFMachPort] = []
     private var swallowMouseUp = false
+    private var mouseDownAt: CGPoint?
+    private var draggedWindow: CGWindowID?
+    private var dragChecked = false
 
     init(manager: StageManager) {
         self.manager = manager
@@ -22,7 +25,7 @@ final class EventInterceptor {
 
     func start() {
         guard taps.isEmpty else { return }
-        addTap(for: [.leftMouseDown, .leftMouseUp])
+        addTap(for: [.leftMouseDown, .leftMouseUp, .leftMouseDragged])
         addTap(for: [.keyDown])
     }
 
@@ -62,12 +65,36 @@ final class EventInterceptor {
         case .leftMouseUp where swallowMouseUp:
             swallowMouseUp = false
             return nil
+        case .leftMouseDown:
+            mouseDownAt = event.location
+            draggedWindow = nil
+            dragChecked = false
+        case .leftMouseDragged:
+            trackWindowDrag(to: event.location)
+        case .leftMouseUp:
+            if let id = draggedWindow, let start = mouseDownAt {
+                manager.windowDragEnded(id, at: event.location,
+                                        movedBy: CGVector(dx: event.location.x - start.x, dy: event.location.y - start.y))
+            }
+            mouseDownAt = nil
+            draggedWindow = nil
         case .keyDown where isCommandM(event) && manager.parkFocusedIfMinimizeShortcut():
             return nil
         default:
             break
         }
         return Unmanaged.passUnretained(event)
+    }
+
+    /// Drag events arrive at pointer rate, so the one Accessibility lookup (is this a title-bar drag?)
+    /// happens once per drag, after the pointer has travelled far enough to rule out a click.
+    private func trackWindowDrag(to point: CGPoint) {
+        guard let start = mouseDownAt else { return }
+        if !dragChecked, hypot(point.x - start.x, point.y - start.y) > 6 {
+            dragChecked = true
+            draggedWindow = manager.stageWindowTitleBar(at: start)
+        }
+        if draggedWindow != nil { manager.setDropTarget(point.x < Geometry.stripWidth) }
     }
 
     /// Re-sends the Mission Control key once the parked windows are back on screen, marked so it passes.
