@@ -57,34 +57,36 @@
       -webkit-font-smoothing: antialiased;
     }
 
-    /* The page is laid out like the app: a narrow strip, and the stage. */
+    /* One centered column: what it is and the download on top, the demo filling the rest. */
     .page {
-      display: grid;
-      grid-template-columns: minmax(260px, 320px) minmax(0, 1fr);
-      gap: clamp(32px, 5vw, 72px);
-      height: 100svh;
-      padding: clamp(24px, 4vh, 48px) clamp(24px, 4vw, 56px);
-    }
-
-    .strip {
       display: flex;
       flex-direction: column;
-      justify-content: center;
-      min-height: 0;
+      align-items: center;
+      gap: clamp(20px, 3.5vh, 40px);
+      height: 100svh;
+      padding: clamp(24px, 4.5vh, 56px) clamp(16px, 4vw, 56px);
+    }
+
+    .intro {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      max-width: 40rem;
     }
     .icon {
-      width: 88px;
-      height: 88px;
-      margin: 0 0 20px -6px;
+      width: 72px;
+      height: 72px;
+      margin: 0 0 14px;
       filter: drop-shadow(0 10px 18px rgba(21, 26, 36, 0.28));
     }
     h1 {
       font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", sans-serif;
-      font-size: 44px;
+      font-size: 40px;
       line-height: 1.05;
       font-weight: 700;
       letter-spacing: -0.025em;
-      margin: 0 0 10px;
+      margin: 0 0 8px;
     }
     .lede {
       text-wrap: balance;
@@ -92,41 +94,24 @@
       line-height: 1.35;
       font-weight: 500;
       letter-spacing: -0.01em;
-      margin: 0 0 12px;
+      margin: 0 0 6px;
     }
     .about {
-      text-wrap: pretty;
+      text-wrap: balance;
       color: var(--quiet);
-      margin: 0 0 28px;
-      max-width: 30em;
+      margin: 0 0 22px;
+      max-width: 34em;
     }
 
-    .keys {
-      margin: 0 0 32px;
-      padding: 16px 0 0;
-      border-top: 1px solid var(--line);
-      display: grid;
-      grid-template-columns: auto 1fr;
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: center;
       gap: 10px 16px;
-      align-items: baseline;
     }
-    .keys dt { white-space: nowrap; }
-    .keys dd { margin: 0; color: var(--quiet); }
-    kbd {
-      display: inline-block;
-      min-width: 1.9em;
-      padding: 1px 6px;
-      font: 500 13px/1.6 -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
-      text-align: center;
-      background: var(--key);
-      border: 1px solid var(--key-edge);
-      border-bottom-width: 2px;
-      border-radius: 5px;
-    }
-    .keys .plain { font-size: 13px; font-weight: 500; }
 
     .get {
-      align-self: flex-start;
       display: inline-flex;
       align-items: center;
       gap: 10px;
@@ -137,7 +122,7 @@
       font-weight: 600;
       text-decoration: none;
     }
-    .get svg { width: 18px; height: 18px; fill: currentColor; }
+    .get svg { width: 18px; height: 18px; }
     .get:hover { opacity: 0.88; }
     .get:focus-visible, a:focus-visible {
       outline: 2px solid var(--mark);
@@ -146,20 +131,22 @@
     .fine {
       color: var(--quiet);
       font-size: 13px;
-      margin: 12px 0 0;
+      margin: 0;
     }
 
-    /* Stage: the video, as large as fits without scrolling. */
+    /* Stage: the video, as large as the space left over allows. */
     .stage {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      min-width: 0;
+      flex: 1;
       min-height: 0;
+      width: 100%;
+      container-type: size;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
     }
     .screen {
       position: relative;
-      width: min(100%, calc((100svh - 2 * clamp(24px, 4vh, 48px)) * 16 / 9));
+      width: min(100cqw, calc(100cqh * 16 / 9), 1440px);
       aspect-ratio: 16 / 9;
       border-radius: 14px;
       overflow: hidden;
@@ -257,43 +244,34 @@
       .sketch .parked { animation: none; }
     }
 
-    @media (max-width: 860px) {
-      .page {
-        grid-template-columns: 1fr;
-        height: auto;
-        gap: 36px;
-        padding: 40px 16px 48px;
-      }
+    /* Phones: a normal scrolling column; the video takes the full width. */
+    @media (max-width: 700px) {
+      .page { height: auto; gap: 32px; padding: 40px 16px 48px; }
+      .stage { flex: none; container-type: normal; }
       .screen { width: 100%; }
-      h1 { font-size: 38px; }
+      h1 { font-size: 36px; }
     }
-    @media (max-height: 640px) and (min-width: 861px) {
+    /* Short laptop screens: keep the video big by dropping the explanation. */
+    @media (max-height: 680px) and (min-width: 701px) {
       .about { display: none; }
     }
   </style>
 </head>
 <body>
   <main class="page">
-    <section class="strip">
-      <img class="icon" src="icon.svg" alt="" width="88" height="88" />
+    <section class="intro">
+      <img class="icon" src="icon.svg" alt="" width="72" height="72" />
       <h1>Appmarks</h1>
       <p class="lede">A personal Stage Manager for your&nbsp;Mac.</p>
       <p class="about">Windows you're not using wait as thumbnails at the edge of the screen. The others on stage show up as small appmarks pinned to the one you're in.</p>
 
-      <dl class="keys">
-        <dt><span class="plain">Click</span></dt>
-        <dd>Bring a window back</dd>
-        <dt><kbd>⌥</kbd> <span class="plain">Click</span></dt>
-        <dd>Park everything else</dd>
-        <dt><kbd>⌃</kbd> <kbd>⌥</kbd> <kbd>↓</kbd></dt>
-        <dd>Park the window you're in</dd>
-      </dl>
-
-      <a class="get" href="https://github.com/yaosamo/appmarks">
-        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
-        Get Appmarks on GitHub
-      </a>
-      <p class="fine">Free and open source. Needs macOS 14 or later.</p>
+      <div class="actions">
+        <a class="get" href="/download">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v12"/><path d="m6 11 6 6 6-6"/><path d="M5 20h14"/></svg>
+          Download for Mac
+        </a>
+        <p class="fine">Free. Needs macOS 14 or later.</p>
+      </div>
     </section>
 
     <section class="stage" aria-label="Demo">

@@ -1,0 +1,9 @@
+{
+  "redirects": [
+    {
+      "source": "/download",
+      "destination": "https://github.com/yaosamo/appmarks/releases/latest/download/Appmarks.zip",
+      "permanent": false
+    }
+  ]
+}
