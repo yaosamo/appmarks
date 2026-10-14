@@ -15,6 +15,10 @@ struct Style: Codable, Equatable {
     var angle = 18.0
     var hoverAngle = 0.0
     var perspective = 0.55
+    var globalPerspective = false
+    var globalAnchorX = 0.5
+    var globalAnchorY = 0.5
+    var cameraDistance = 500.0
     var hoverScale = 1.07
     var shadowRadius = 10.0
     var shadowOpacity = 0.35
@@ -119,6 +123,13 @@ private struct SettingsView: View {
                     SliderRow("Angle", $settings.style.angle, -60...60, unit: "°")
                     SliderRow("Hover angle", $settings.style.hoverAngle, -60...60, unit: "°")
                     SliderRow("Perspective", $settings.style.perspective, 0...1.5, step: 0.01, digits: 2)
+                    Toggle("Global perspective", isOn: $settings.style.globalPerspective)
+                    SliderRow("Camera distance", $settings.style.cameraDistance, 100...3000, step: 10)
+                        .disabled(!settings.style.globalPerspective)
+                    SliderRow("Vanishing point X", $settings.style.globalAnchorX, 0...1, step: 0.01, digits: 2)
+                        .disabled(!settings.style.globalPerspective)
+                    SliderRow("Vanishing point Y", $settings.style.globalAnchorY, 0...1, step: 0.01, digits: 2)
+                        .disabled(!settings.style.globalPerspective)
                     SliderRow("Hover scale", $settings.style.hoverScale, 0.8...1.5, step: 0.01, digits: 2)
                     SliderRow("Shadow radius", $settings.style.shadowRadius, 0...40)
                     SliderRow("Shadow opacity", $settings.style.shadowOpacity, 0...1, step: 0.01, digits: 2)
