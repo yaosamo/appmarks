@@ -20,6 +20,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         restoreWindowsOnSignals()
         followAppearanceSetting()
+        LaunchAtLogin.enableOnFirstLaunch()
         startWhenTrusted()
     }
 
