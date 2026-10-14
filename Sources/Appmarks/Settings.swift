@@ -215,6 +215,7 @@ private struct SettingsView: View {
     @ObservedObject var settings: Settings
     @AppStorage("showFineTuning") private var showFineTuning = false
     @State private var status = ""
+    @State private var openAtLogin = LaunchAtLogin.isEnabled
 
     var body: some View {
         VStack(spacing: 0) {
@@ -244,6 +245,10 @@ private struct SettingsView: View {
                     .disabled(!settings.style.showSwitcher)
                 }
                 Section {
+                    Toggle("Open at login", isOn: Binding(
+                        get: { openAtLogin },
+                        set: { LaunchAtLogin.isEnabled = $0; openAtLogin = LaunchAtLogin.isEnabled }
+                    ))
                     Toggle(isOn: $settings.style.alwaysDark) {
                         Text("Always dark")
                         Text("When off, panels follow the system's light or dark appearance.")
@@ -265,6 +270,10 @@ private struct SettingsView: View {
             .padding(12)
         }
         .frame(minWidth: 420, minHeight: 400)
+        // The window is reused, and Login Items can change in System Settings while it is closed.
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { _ in
+            openAtLogin = LaunchAtLogin.isEnabled
+        }
     }
 
     @ViewBuilder private var fineTuning: some View {

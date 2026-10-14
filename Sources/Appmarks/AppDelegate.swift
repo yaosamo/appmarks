@@ -21,6 +21,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         restoreWindowsOnSignals()
         followAppearanceSetting()
+        LaunchAtLogin.enableOnFirstLaunch()
         if !Permission.allGranted { welcomeWindow.show() }
         startWhenTrusted()
     }

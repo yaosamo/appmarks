@@ -14,6 +14,7 @@ Menu bar icon → **Settings…** (⌘,):
 
 - **Parked windows**: pick the spot on a screen sketch (left or right, top, center or bottom), size, density, app icons and labels.
 - **Appmarks on windows**: pick the spot on a window sketch (any corner or the middle of any side), inside or outside the window.
+- **Open at login**: on by default (set on first launch); turning it off here or in System Settings → General → Login Items sticks.
 - **Always dark**: otherwise the panels follow the system's light or dark appearance.
 - **Fine-tuning** shows every underlying value; Copy/Paste moves them around as JSON.
 
