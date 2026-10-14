@@ -24,6 +24,11 @@ struct Style: Codable, Equatable {
     var shadowOpacity = 0.35
     var shadowY = 5.0
 
+    var stackDepth = 3.0
+    var stackOffsetX = 10.0
+    var stackOffsetY = 10.0
+    var stageCascade = 28.0
+
     var showIcon = true
     var iconSize = 34.0
     var iconOffsetX = -10.0
@@ -134,6 +139,12 @@ private struct SettingsView: View {
                     SliderRow("Shadow radius", $settings.style.shadowRadius, 0...40)
                     SliderRow("Shadow opacity", $settings.style.shadowOpacity, 0...1, step: 0.01, digits: 2)
                     SliderRow("Shadow Y", $settings.style.shadowY, -20...30)
+                }
+                Section("Stack") {
+                    SliderRow("Windows shown", $settings.style.stackDepth, 1...6)
+                    SliderRow("Offset X", $settings.style.stackOffsetX, -40...40)
+                    SliderRow("Offset Y", $settings.style.stackOffsetY, -40...40)
+                    SliderRow("Stage cascade", $settings.style.stageCascade, 0...80)
                 }
                 Section("App icon") {
                     Toggle("Show icon", isOn: $settings.style.showIcon)
