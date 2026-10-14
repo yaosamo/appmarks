@@ -42,8 +42,8 @@ final class StageManager {
     private(set) var isInMissionControl = false
     private var exposed: [CGWindowID] = []
     private var subscriptions: Set<AnyCancellable> = []
-    private lazy var panel = StripPanel(model: strip) { [weak self] pid, replace in
-        self?.select(app: pid, replacingStage: replace)
+    private lazy var panel = StripPanel(model: strip) { [weak self] id, replace in
+        self?.select(id, replacingStage: replace)
     }
 
     init() {
@@ -128,11 +128,10 @@ final class StageManager {
         var hit: AXUIElement?
         guard AXUIElementCopyElementAtPosition(AXUIElementCreateSystemWide(), Float(point.x), Float(point.y), &hit) == .success,
               let hit, hit.subrole == kAXMinimizeButtonSubrole, hit.isEnabled,
-              let id = hit.window?.windowID, stage.contains(id), let pid = windows[id]?.pid
+              let id = hit.window?.windowID, stage.contains(id)
         else { return false }
         ignoreFocus(for: 1)
         park(id)
-        focusNextStageWindow(of: pid)
         publish()
         return true
     }
@@ -146,15 +145,8 @@ final class StageManager {
         else { return false }
         ignoreFocus(for: 1)
         park(id)
-        focusNextStageWindow(of: app.processIdentifier)
         publish()
         return true
-    }
-
-    /// The app otherwise keeps focus on the window just parked, so ⌘M twice would hit a hidden window.
-    private func focusNextStageWindow(of pid: pid_t) {
-        guard let next = stage.compactMap({ windows[$0] }).first(where: { $0.pid == pid }) else { return }
-        next.element.focus(appPID: pid)
     }
 
     private func minimizeItem(for pid: pid_t) -> AXUIElement? {
@@ -164,21 +156,15 @@ final class StageManager {
     }
 
     /// A plain click adds the window to whatever is already on stage; Option-click swaps the stage for it.
-    /// A plain click adds every off-stage window of the app to the stage; Option-click first sends the
-    /// other apps' windows back. The front window lands in the middle, the rest cascade behind it.
-    func select(app pid: pid_t, replacingStage: Bool) {
-        let group = parked.compactMap { windows[$0] }.filter { $0.pid == pid && $0.present }
-        guard isActive, let front = group.first else { return }
+    func select(_ id: CGWindowID, replacingStage: Bool) {
+        guard isActive, let window = windows[id] else { return }
         ignoreFocus()
         if replacingStage {
-            for other in Array(stage) where windows[other]?.pid != pid { park(other) }
+            for other in Array(stage) where other != id { park(other) }
         }
-        for (depth, window) in group.enumerated().reversed() {
-            bringToStage(window, cascade: depth)
-            window.element.focus(appPID: pid)
-        }
-        NSRunningApplication(processIdentifier: pid)?.activate()
-        front.element.focus(appPID: pid)
+        bringToStage(window)
+        NSRunningApplication(processIdentifier: window.pid)?.activate()
+        window.element.focus(appPID: window.pid)
         publish()
     }
 
@@ -240,9 +226,8 @@ final class StageManager {
         parked.insert(id, at: 0)
     }
 
-    private func bringToStage(_ window: ManagedWindow, cascade depth: Int = 0) {
-        let step = Settings.shared.style.stageCascade * Double(depth)
-        place(window, in: Geometry.centered(window.size).offsetBy(dx: step, dy: step))
+    private func bringToStage(_ window: ManagedWindow) {
+        place(window, in: Geometry.centered(window.size))
         parked.removeAll { $0 == window.id }
         stage.insert(window.id)
     }
@@ -340,16 +325,11 @@ final class StageManager {
     }
 
     private func publish() {
-        let shown = parked.compactMap { windows[$0] }.filter(\.present)
-        var order: [pid_t] = []
-        var byApp: [pid_t: [StripWindow]] = [:]
-        for window in shown {
-            if byApp[window.pid] == nil { order.append(window.pid) }
-            byApp[window.pid, default: []].append(StripWindow(id: window.id, title: window.title, thumbnail: window.thumbnail))
-        }
-        strip.items = order.map { pid in
-            let app = NSRunningApplication(processIdentifier: pid)
-            return StripItem(id: pid, appName: app?.localizedName ?? "", icon: app?.icon, windows: byApp[pid]!)
+        strip.items = parked.compactMap { id in
+            guard let window = windows[id], window.present else { return nil }
+            let app = NSRunningApplication(processIdentifier: window.pid)
+            return StripItem(id: id, title: window.title, appName: app?.localizedName ?? "",
+                             icon: app?.icon, thumbnail: window.thumbnail)
         }
     }
 
