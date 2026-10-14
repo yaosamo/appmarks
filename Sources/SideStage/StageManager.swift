@@ -53,6 +53,11 @@ final class StageManager {
         self?.dragThumbnail(id, ended: ended)
     })
     private let ghost = DragGhost()
+    private let proxy = DragProxy()
+    private var proxyImages: [CGWindowID: NSImage] = [:]
+    /// The window being carried to the strip: where it was grabbed (as a fraction of its size), its frame
+    /// when taken over, and where it sat before the drag began.
+    private var carried: (id: CGWindowID, grab: CGPoint, size: CGSize, origin: CGPoint)?
 
     init() {
         // A hung app must not stall every click passing through the event tap.
@@ -257,6 +262,69 @@ final class StageManager {
               CGRect(x: frame.minX, y: frame.minY, width: frame.width, height: 60).contains(point)
         else { return nil }
         return id
+    }
+
+    /// 0 while the pointer is farther than the drag shrink distance from the strip, 1 over the strip.
+    func dragProgress(at x: CGFloat) -> CGFloat {
+        let span = Settings.shared.style.dragTransition
+        return min(max((Geometry.stripWidth + span - x) / span, 0), 1)
+    }
+
+    /// Captures the dragged window at full resolution while it is still being dragged natively, so the
+    /// stand-in is sharp when it takes over rather than the strip's small thumbnail.
+    func prepareCarry(_ id: CGWindowID) {
+        guard let width = windows[id]?.size.width else { return }
+        Task { @MainActor in
+            if let image = await Thumbnails.capture([id], width: width * 2)[id] { proxyImages[id] = image }
+        }
+    }
+
+    /// Hides the real window and shows the stand-in in its place; the caller then ends the native drag.
+    func beginCarry(_ id: CGWindowID, at point: CGPoint, startedAt start: CGPoint) -> Bool {
+        guard isActive, stage.contains(id), let window = windows[id], let frame = window.element.frame else { return false }
+        carried = (id, CGPoint(x: (point.x - frame.minX) / frame.width, y: (point.y - frame.minY) / frame.height),
+                   frame.size, CGPoint(x: frame.minX - (point.x - start.x), y: frame.minY - (point.y - start.y)))
+        ignoreFocus(for: 2)
+        proxy.show(proxyImages[id] ?? window.thumbnail)
+        carry(to: point)
+        window.element.setPosition(Geometry.parkPoint)
+        return true
+    }
+
+    func carry(to point: CGPoint) {
+        guard let carried else { return }
+        let style = Settings.shared.style
+        let p = dragProgress(at: point.x)
+        let fit = min(style.maxWidth / carried.size.width, style.maxHeight / carried.size.height)
+        let target = CGSize(width: carried.size.width * fit * style.squeeze, height: carried.size.height * fit)
+        let size = CGSize(width: carried.size.width + (target.width - carried.size.width) * p,
+                          height: carried.size.height + (target.height - carried.size.height) * p)
+        let origin = CGPoint(x: point.x - carried.grab.x * size.width, y: point.y - carried.grab.y * size.height)
+        proxy.update(frame: CGRect(origin: origin, size: size), progress: p, style: style)
+        setDropTarget(point.x < Geometry.stripWidth)
+    }
+
+    /// Over the strip the window stays parked; anywhere else it comes back full size under the pointer.
+    func endCarry(at point: CGPoint) {
+        proxy.orderOut(nil)
+        setDropTarget(false)
+        guard let carried, let window = windows[carried.id] else { return }
+        self.carried = nil
+        proxyImages[carried.id] = nil
+        if point.x < Geometry.stripWidth {
+            window.size = carried.size
+            window.savedOrigin = carried.origin
+            stage.remove(carried.id)
+            parked.removeAll { $0 == carried.id }
+            parked.insert(carried.id, at: 0)
+            focusNextStageWindow(of: window.pid)
+        } else {
+            let origin = CGPoint(x: point.x - carried.grab.x * carried.size.width,
+                                 y: max(point.y - carried.grab.y * carried.size.height, Geometry.stageArea.minY))
+            place(window, in: CGRect(origin: origin, size: carried.size))
+            window.element.focus(appPID: window.pid)
+        }
+        publish()
     }
 
     func setDropTarget(_ on: Bool) {

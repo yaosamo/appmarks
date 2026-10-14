@@ -18,6 +18,7 @@ final class EventInterceptor {
     private var mouseDownAt: CGPoint?
     private var draggedWindow: CGWindowID?
     private var dragChecked = false
+    private var carrying = false
 
     init(manager: StageManager) {
         self.manager = manager
@@ -50,8 +51,17 @@ final class EventInterceptor {
         switch type {
         case .tapDisabledByTimeout, .tapDisabledByUserInput:
             taps.forEach { CGEvent.tapEnable(tap: $0, enable: true) }
-        case .keyDown where event.getIntegerValueField(.eventSourceUserData) == Self.replayMark:
+        case _ where event.getIntegerValueField(.eventSourceUserData) == Self.replayMark:
             break
+        case .leftMouseDragged where carrying:
+            manager.carry(to: event.location)
+            return nil
+        case .leftMouseUp where carrying:
+            carrying = false
+            manager.endCarry(at: event.location)
+            mouseDownAt = nil
+            draggedWindow = nil
+            return nil
         case .leftMouseDown where manager.isInMissionControl:
             manager.scheduleMissionControlEnd()
         case .keyDown where manager.isInMissionControl:
@@ -71,6 +81,12 @@ final class EventInterceptor {
             dragChecked = false
         case .leftMouseDragged:
             trackWindowDrag(to: event.location)
+            if let id = draggedWindow, let start = mouseDownAt, manager.dragProgress(at: event.location.x) > 0,
+               manager.beginCarry(id, at: event.location, startedAt: start) {
+                carrying = true
+                endNativeDrag(at: event.location)
+                return nil
+            }
         case .leftMouseUp:
             if let id = draggedWindow, let start = mouseDownAt {
                 manager.windowDragEnded(id, at: event.location,
@@ -93,8 +109,17 @@ final class EventInterceptor {
         if !dragChecked, hypot(point.x - start.x, point.y - start.y) > 6 {
             dragChecked = true
             draggedWindow = manager.stageWindowTitleBar(at: start)
+            if let draggedWindow { manager.prepareCarry(draggedWindow) }
         }
         if draggedWindow != nil { manager.setDropTarget(point.x < Geometry.stripWidth) }
+    }
+
+    /// A synthetic mouse-up ends the window server's (or the app's) own drag loop, so the real window stops
+    /// following the pointer while SideStage carries its stand-in. Marked so this tap lets it through.
+    private func endNativeDrag(at point: CGPoint) {
+        guard let up = CGEvent(mouseEventSource: nil, mouseType: .leftMouseUp, mouseCursorPosition: point, mouseButton: .left) else { return }
+        up.setIntegerValueField(.eventSourceUserData, value: Self.replayMark)
+        up.post(tap: .cghidEventTap)
     }
 
     /// Re-sends the Mission Control key once the parked windows are back on screen, marked so it passes.
