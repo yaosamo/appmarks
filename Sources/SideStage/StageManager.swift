@@ -41,6 +41,8 @@ final class StageManager {
     }
 
     init() {
+        // A hung app must not stall every click passing through the event tap.
+        AXUIElementSetMessagingTimeout(AXUIElementCreateSystemWide(), 0.25)
         let center = NSWorkspace.shared.notificationCenter
         center.addObserver(forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.scheduleFocusCheck() }
@@ -99,6 +101,24 @@ final class StageManager {
         panel.orderOut(nil)
         publish()
         if appleStageManagerWasOn { AppleStageManager.setEnabled(true) }
+    }
+
+    /// Called from the event tap on every left click, before the target app sees it. Returns true when the
+    /// click landed on a stage window's minimize button and that window has been parked instead.
+    func parkIfMinimizeButton(at point: CGPoint) -> Bool {
+        let titleBars = stage.compactMap { windows[$0]?.element.frame }
+            .map { CGRect(x: $0.minX, y: $0.minY, width: 100, height: 56) }
+        guard isActive, titleBars.contains(where: { $0.contains(point) }) else { return false }
+
+        var hit: AXUIElement?
+        guard AXUIElementCopyElementAtPosition(AXUIElementCreateSystemWide(), Float(point.x), Float(point.y), &hit) == .success,
+              let hit, hit.subrole == kAXMinimizeButtonSubrole, hit.isEnabled,
+              let id = hit.window?.windowID, stage.contains(id)
+        else { return false }
+        ignoreFocus(for: 1)
+        park(id)
+        publish()
+        return true
     }
 
     /// A plain click adds the window to whatever is already on stage; Option-click swaps the stage for it.

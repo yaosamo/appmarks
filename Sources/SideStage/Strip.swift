@@ -16,8 +16,8 @@ final class StripModel: ObservableObject {
 final class StripPanel: NSPanel {
     init(model: StripModel, onSelect: @escaping (CGWindowID, Bool) -> Void) {
         super.init(contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
-        isFloatingPanel = true
-        level = .floating
+        // Just above the desktop icons, so every open window covers the strip, as Apple's Stage Manager does.
+        level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.desktopIconWindow)) + 1)
         collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle, .fullScreenNone]
         backgroundColor = .clear
         isOpaque = false

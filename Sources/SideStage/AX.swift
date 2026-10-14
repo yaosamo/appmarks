@@ -23,6 +23,12 @@ extension AXUIElement {
     var windows: [AXUIElement] { copy(kAXWindowsAttribute) as? [AXUIElement] ?? [] }
     var title: String? { copy(kAXTitleAttribute) as? String }
     var subrole: String? { copy(kAXSubroleAttribute) as? String }
+    var isEnabled: Bool { copy(kAXEnabledAttribute) as? Bool ?? false }
+
+    var window: AXUIElement? {
+        guard let value = copy(kAXWindowAttribute), CFGetTypeID(value) == AXUIElementGetTypeID() else { return nil }
+        return (value as! AXUIElement)
+    }
     var isMinimized: Bool { copy(kAXMinimizedAttribute) as? Bool ?? false }
 
     var focusedWindow: AXUIElement? {

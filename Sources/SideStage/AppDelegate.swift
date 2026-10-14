@@ -4,6 +4,7 @@ import Carbon
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private let manager = StageManager()
+    private lazy var interceptor = MinimizeInterceptor(manager: manager)
     private var statusItem: NSStatusItem!
     private var toggleItem: NSMenuItem!
     private var permissionTimer: Timer?
@@ -29,6 +30,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if trusted {
             if !CGPreflightScreenCaptureAccess() { CGRequestScreenCaptureAccess() }
             manager.start()
+            interceptor.start()
             updateMenu()
             return
         }
