@@ -140,16 +140,17 @@ final class SwitcherPanel: NSPanel {
 
     private func place(_ window: CGRect, glide: Bool) {
         placedFor = window
-        // The resting appmarks are what sits on the window; the rest of the panel is room to grow.
-        var frame = style.switcherSpot.frame(layout.resting.size, on: window, inside: style.switcherInside,
+        // The resting appmarks and their backdrop are what sits on the window; the rest is room to grow.
+        let pinned = layout.resting.insetBy(dx: -layout.backdropPadding, dy: -layout.backdropPadding)
+        var frame = style.switcherSpot.frame(pinned.size, on: window, inside: style.switcherInside,
                                              gap: style.switcherOffsetX, inset: style.switcherOffsetY)
         // Outside a window that touches a screen edge, the appmarks would otherwise hang off the screen.
         let screen = Geometry.visibleArea
         frame.origin.x = max(screen.minX, min(frame.minX, screen.maxX - frame.width))
         frame.origin.y = max(screen.minY, min(frame.minY, screen.maxY - frame.height))
-        let panelTop = frame.minY - layout.resting.minY
+        let panelTop = frame.minY - pinned.minY
         let primaryHeight = NSScreen.screens[0].frame.height
-        target = NSRect(x: frame.minX - layout.resting.minX, y: primaryHeight - panelTop - layout.size.height,
+        target = NSRect(x: frame.minX - pinned.minX, y: primaryHeight - panelTop - layout.size.height,
                         width: layout.size.width, height: layout.size.height)
         if glide {
             startLink()
@@ -166,6 +167,8 @@ final class SwitcherPanel: NSPanel {
 struct AppmarkLayout {
     let size: CGSize
     let resting: CGRect
+    let backdropPadding: CGFloat
+    let cornerRadius: CGFloat
 
     private let vertical: Bool
     /// Growing toward smaller x (a column left of its window edge) or smaller y (a row above it).
@@ -185,6 +188,8 @@ struct AppmarkLayout {
         let vertical = spot.isVertical
         self.vertical = vertical
         growsTowardStart = ((vertical ? spot.unit.x : spot.unit.y) == 0) != style.switcherInside
+        backdropPadding = style.switcherBackground ? 5 : 0
+        cornerRadius = style.switcherCornerRadius
         spacing = style.switcherSpacing * style.gapScale
         ids = items.map(\.id)
 
@@ -208,8 +213,8 @@ struct AppmarkLayout {
         let length = along.reduce(0, +) + spacing * CGFloat(max(along.count - 1, 0))
         // An appmark grows around its centre, so half its growth lands on each side of the stack.
         let margin = (zip(grownAlong, along).map { $0 - $1 }.max() ?? 0) / 2
-        // Room for shadows and the icon badge that pokes out of an appmark's corner.
-        let edge: CGFloat = 10
+        // Room for the backdrop, shadows and the icon badge that pokes out of an appmark's corner.
+        let edge = backdropPadding + 10
         start = edge + margin
         let restingCross = across.max() ?? 0
         let crossExtent = (grownAcross.max() ?? 0) + 2 * edge
@@ -250,14 +255,14 @@ struct AppmarkLayout {
     /// nearer side. Nil once the point leaves their outline.
     func item(at point: CGPoint, hovered: CGWindowID?) -> CGWindowID? {
         let frames = frames(hovered: hovered)
-        guard outline(frames).contains(point) else { return nil }
+        guard backdrop(frames).contains(point) else { return nil }
         let at = vertical ? point.y : point.x
         let index = frames.indices.last { at >= frames[$0].minEdge(vertical: !vertical) - spacing / 2 } ?? 0
         return ids.indices.contains(index) ? ids[index] : nil
     }
 
-    func outline(_ frames: [CGRect]) -> CGRect {
-        frames.reduce(CGRect.null) { $0.union($1) }
+    func backdrop(_ frames: [CGRect]) -> CGRect {
+        frames.reduce(CGRect.null) { $0.union($1) }.insetBy(dx: -backdropPadding, dy: -backdropPadding)
     }
 }
 
@@ -277,7 +282,16 @@ private struct SwitcherView: View {
         let style = settings.style
         let layout = AppmarkLayout(items: model.items, style: style)
         let frames = layout.frames(hovered: hover.hovered)
+        let backdrop = layout.backdrop(frames)
         ZStack(alignment: .topLeading) {
+            Group {
+                if style.switcherBackground {
+                    Backdrop(cornerRadius: layout.cornerRadius + 4)
+                        .overlay(RoundedRectangle(cornerRadius: layout.cornerRadius + 4).strokeBorder(.primary.opacity(0.1)))
+                }
+            }
+            .frame(width: backdrop.width, height: backdrop.height)
+            .offset(x: backdrop.minX, y: backdrop.minY)
             ForEach(Array(zip(model.items, frames)), id: \.0.id) { item, frame in
                 SwitcherChip(item: item, style: style, size: frame.size)
                     .offset(x: frame.minX, y: frame.minY)
@@ -316,5 +330,32 @@ private struct SwitcherChip: View {
             }
         }
         .frame(width: size.width, height: size.height)
+    }
+}
+
+/// Behind-window vibrancy, which follows the system's light or dark appearance. SwiftUI materials only
+/// blend with the panel's own clear content, so they render the same murky dark in either mode.
+private struct Backdrop: NSViewRepresentable {
+    let cornerRadius: CGFloat
+
+    func makeNSView(context: Context) -> NSVisualEffectView {
+        let view = NSVisualEffectView()
+        view.material = .popover
+        view.blendingMode = .behindWindow
+        // The panel is never key, and an inactive effect view drops its vibrancy.
+        view.state = .active
+        return view
+    }
+
+    func updateNSView(_ view: NSVisualEffectView, context: Context) {
+        let edge = cornerRadius * 2 + 1
+        let mask = NSImage(size: NSSize(width: edge, height: edge), flipped: false) { rect in
+            NSColor.black.setFill()
+            NSBezierPath(roundedRect: rect, xRadius: cornerRadius, yRadius: cornerRadius).fill()
+            return true
+        }
+        mask.capInsets = NSEdgeInsets(top: cornerRadius, left: cornerRadius, bottom: cornerRadius, right: cornerRadius)
+        mask.resizingMode = .stretch
+        view.maskImage = mask
     }
 }
