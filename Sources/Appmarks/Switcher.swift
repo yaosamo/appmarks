@@ -16,9 +16,9 @@ final class SwitcherModel: ObservableObject {
     @Published var items: [SwitcherItem] = []
 }
 
-/// The pointer over the appmarks, in the panel's top-left-origin coordinates; nil when it is elsewhere.
+/// The appmark under the pointer, if any.
 final class AppmarkHover: ObservableObject {
-    @Published var pointer: CGPoint?
+    @Published var hovered: CGWindowID?
 }
 
 /// Previews of the other windows on stage, pinned to a corner of the focused window. It follows focus
@@ -83,7 +83,7 @@ final class SwitcherPanel: NSPanel {
         link = nil
         monitors.forEach(NSEvent.removeMonitor)
         monitors = []
-        hover.pointer = nil
+        hover.hovered = nil
         super.orderOut(sender)
     }
 
@@ -102,9 +102,8 @@ final class SwitcherPanel: NSPanel {
     private func pointerMoved() {
         let mouse = NSEvent.mouseLocation
         let local = CGPoint(x: mouse.x - frame.minX, y: frame.maxY - mouse.y)
-        let outline = layout.backdrop(layout.frames(pointer: hover.pointer))
-        let pointer = outline.contains(local) ? local : nil
-        if pointer != hover.pointer { hover.pointer = pointer }
+        let hovered = layout.item(at: local, hovered: hover.hovered)
+        if hovered != hover.hovered { hover.hovered = hovered }
     }
 
     private func startLink() {
@@ -163,8 +162,8 @@ final class SwitcherPanel: NSPanel {
 
 /// Where each appmark sits, at rest and with the one under the pointer grown to fit `switcherHoverSize`
 /// square. It grows away from the window, so the edge facing it stays put, and its neighbours slide
-/// aside rather than being covered. The panel is sized up front for the largest appmark grown, and
-/// `resting` is the box the appmarks fill at rest.
+/// aside rather than being covered; nothing follows the pointer. The panel is sized up front for the
+/// largest appmark grown, and `resting` is the box the appmarks fill at rest.
 struct AppmarkLayout {
     let size: CGSize
     let resting: CGRect
@@ -178,6 +177,7 @@ struct AppmarkLayout {
     private let across: [CGFloat]
     private let peak: [CGFloat]
     private let spacing: CGFloat
+    private let ids: [CGWindowID]
     /// Where the resting stack starts along its axis, in the panel.
     private let start: CGFloat
 
@@ -189,6 +189,7 @@ struct AppmarkLayout {
         backdropPadding = style.switcherBackground ? 5 : 0
         cornerRadius = style.switcherCornerRadius
         spacing = style.switcherSpacing * style.gapScale
+        ids = items.map(\.id)
 
         let height = CGFloat(style.switcherHeight)
         let sizes = items.map { item -> CGSize in
@@ -204,8 +205,8 @@ struct AppmarkLayout {
         self.peak = peak
 
         let length = along.reduce(0, +) + spacing * CGFloat(max(along.count - 1, 0))
-        // Growth along the axis can land wholly on either side of the pointer.
-        let margin = zip(peak, along).map { ($0 - 1) * $1 }.max() ?? 0
+        // An appmark grows around its centre, so half its growth lands on each side of the stack.
+        let margin = (zip(peak, along).map { ($0 - 1) * $1 }.max() ?? 0) / 2
         // Room for the backdrop, shadows and the icon badge that pokes out of an appmark's corner.
         let edge = backdropPadding + 10
         start = edge + margin
@@ -218,41 +219,40 @@ struct AppmarkLayout {
                            : CGRect(x: start, y: crossStart, width: length, height: restingCross)
     }
 
-    /// Each appmark's frame in the panel (top-left origin) with the pointer at `pointer`, or at rest.
-    /// The stack shifts so the spot under the pointer stays under it, as in the Dock.
-    func frames(pointer: CGPoint?) -> [CGRect] {
-        let restingStarts = along.indices.map { i in along[..<i].reduce(0, +) + spacing * CGFloat(i) }
-        var scales = Array(repeating: CGFloat(1), count: along.count)
-        var at: CGFloat = 0
-        if let pointer {
-            at = (vertical ? pointer.y : pointer.x) - start
-            // The appmark whose resting slot, gaps split down the middle, holds the pointer.
-            if let hovered = along.indices.last(where: { at >= restingStarts[$0] - spacing / 2 }) ?? along.indices.first {
-                scales[hovered] = peak[hovered]
-            }
-        }
+    /// Each appmark's frame in the panel (top-left origin), with `hovered` grown or all at rest. The
+    /// hovered appmark grows around its resting centre, so its neighbours slide aside by half each way.
+    func frames(hovered: CGWindowID?) -> [CGRect] {
+        let grown = hovered.flatMap { ids.firstIndex(of: $0) }
         var starts: [CGFloat] = []
         var cursor: CGFloat = 0
         for i in along.indices {
             starts.append(cursor)
-            cursor += along[i] * scales[i] + spacing
+            cursor += along[i] * (i == grown ? peak[i] : 1) + spacing
         }
-        // Where the pointer's resting spot lands once magnified; the difference pins it in place.
-        var landed = at
-        for i in along.indices.reversed() where at >= restingStarts[i] {
-            let into = at - restingStarts[i]
-            landed = into <= along[i] ? starts[i] + into * scales[i] : starts[i] + along[i] * scales[i] + (into - along[i])
-            break
+        var shift: CGFloat = 0
+        if let grown {
+            let restingCentre = along[..<grown].reduce(0, +) + spacing * CGFloat(grown) + along[grown] / 2
+            shift = restingCentre - (starts[grown] + along[grown] * peak[grown] / 2)
         }
-        let shift = pointer == nil ? 0 : at - landed
 
         return along.indices.map { i in
-            let length = along[i] * scales[i], thickness = across[i] * scales[i]
+            let scale = i == grown ? peak[i] : 1
+            let length = along[i] * scale, thickness = across[i] * scale
             let a = start + starts[i] + shift
             let c = growsTowardStart ? resting.maxEdge(vertical: vertical) - thickness : resting.minEdge(vertical: vertical)
             return vertical ? CGRect(x: c, y: a, width: thickness, height: length)
                             : CGRect(x: a, y: c, width: length, height: thickness)
         }
+    }
+
+    /// The appmark under `point` as the appmarks are drawn now, with `hovered` grown; gaps go to the
+    /// nearer side. Nil once the point leaves their outline.
+    func item(at point: CGPoint, hovered: CGWindowID?) -> CGWindowID? {
+        let frames = frames(hovered: hovered)
+        guard backdrop(frames).contains(point) else { return nil }
+        let at = vertical ? point.y : point.x
+        let index = frames.indices.last { at >= frames[$0].minEdge(vertical: !vertical) - spacing / 2 } ?? 0
+        return ids.indices.contains(index) ? ids[index] : nil
     }
 
     func backdrop(_ frames: [CGRect]) -> CGRect {
@@ -275,7 +275,7 @@ private struct SwitcherView: View {
     var body: some View {
         let style = settings.style
         let layout = AppmarkLayout(items: model.items, style: style)
-        let frames = layout.frames(pointer: hover.pointer)
+        let frames = layout.frames(hovered: hover.hovered)
         let backdrop = layout.backdrop(frames)
         ZStack(alignment: .topLeading) {
             Group {
@@ -293,7 +293,7 @@ private struct SwitcherView: View {
             }
         }
         .frame(width: layout.size.width, height: layout.size.height, alignment: .topLeading)
-        .animation(.spring(response: 0.2, dampingFraction: 0.9), value: hover.pointer)
+        .animation(.spring(response: 0.2, dampingFraction: 0.9), value: hover.hovered)
     }
 }
 
