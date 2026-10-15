@@ -160,7 +160,7 @@ final class SwitcherPanel: NSPanel {
     }
 }
 
-/// Where each appmark sits, at rest and with the one under the pointer grown to fit `switcherHoverSize`
+/// Where each appmark sits, at rest and with the one under the pointer grown to a `switcherHoverSize`
 /// square. It grows away from the window, so the edge facing it stays put, and its neighbours slide
 /// aside rather than being covered; nothing follows the pointer. The panel is sized up front for the
 /// largest appmark grown, and `resting` is the box the appmarks fill at rest.
@@ -175,7 +175,9 @@ struct AppmarkLayout {
     private let growsTowardStart: Bool
     private let along: [CGFloat]
     private let across: [CGFloat]
-    private let peak: [CGFloat]
+    /// Each appmark's length along the axis and thickness across it once hovered.
+    private let grownAlong: [CGFloat]
+    private let grownAcross: [CGFloat]
     private let spacing: CGFloat
     private let ids: [CGWindowID]
     /// Where the resting stack starts along its axis, in the panel.
@@ -201,17 +203,21 @@ struct AppmarkLayout {
         let across = sizes.map { vertical ? $0.width : $0.height }
         self.along = along
         self.across = across
-        let peak = sizes.map { max(1, min(box / $0.width, box / $0.height)) }
-        self.peak = peak
+        // Hovered, every appmark fills the box whatever its window's shape, and never shrinks.
+        let grown = sizes.map { CGSize(width: max($0.width, box), height: max($0.height, box)) }
+        let grownAlong = grown.map { vertical ? $0.height : $0.width }
+        let grownAcross = grown.map { vertical ? $0.width : $0.height }
+        self.grownAlong = grownAlong
+        self.grownAcross = grownAcross
 
         let length = along.reduce(0, +) + spacing * CGFloat(max(along.count - 1, 0))
         // An appmark grows around its centre, so half its growth lands on each side of the stack.
-        let margin = (zip(peak, along).map { ($0 - 1) * $1 }.max() ?? 0) / 2
+        let margin = (zip(grownAlong, along).map { $0 - $1 }.max() ?? 0) / 2
         // Room for the backdrop, shadows and the icon badge that pokes out of an appmark's corner.
         let edge = backdropPadding + 10
         start = edge + margin
         let restingCross = across.max() ?? 0
-        let crossExtent = (zip(across, peak).map { $0 * $1 }.max() ?? 0) + 2 * edge
+        let crossExtent = (grownAcross.max() ?? 0) + 2 * edge
         let crossStart = growsTowardStart ? crossExtent - edge - restingCross : edge
         let alongExtent = length + 2 * (edge + margin)
         size = vertical ? CGSize(width: crossExtent, height: alongExtent) : CGSize(width: alongExtent, height: crossExtent)
@@ -227,17 +233,17 @@ struct AppmarkLayout {
         var cursor: CGFloat = 0
         for i in along.indices {
             starts.append(cursor)
-            cursor += along[i] * (i == grown ? peak[i] : 1) + spacing
+            cursor += (i == grown ? grownAlong[i] : along[i]) + spacing
         }
         var shift: CGFloat = 0
         if let grown {
             let restingCentre = along[..<grown].reduce(0, +) + spacing * CGFloat(grown) + along[grown] / 2
-            shift = restingCentre - (starts[grown] + along[grown] * peak[grown] / 2)
+            shift = restingCentre - (starts[grown] + grownAlong[grown] / 2)
         }
 
         return along.indices.map { i in
-            let scale = i == grown ? peak[i] : 1
-            let length = along[i] * scale, thickness = across[i] * scale
+            let length = i == grown ? grownAlong[i] : along[i]
+            let thickness = i == grown ? grownAcross[i] : across[i]
             let a = start + starts[i] + shift
             let c = growsTowardStart ? resting.maxEdge(vertical: vertical) - thickness : resting.minEdge(vertical: vertical)
             return vertical ? CGRect(x: c, y: a, width: thickness, height: length)
@@ -307,7 +313,8 @@ private struct SwitcherChip: View {
         ZStack(alignment: .bottomTrailing) {
             Group {
                 if let thumbnail = item.thumbnail {
-                    Image(nsImage: thumbnail).resizable()
+                    // Fills the square a hovered appmark grows to, cropped rather than stretched.
+                    Image(nsImage: thumbnail).resizable().aspectRatio(contentMode: .fill)
                 } else {
                     RoundedRectangle(cornerRadius: style.switcherCornerRadius).fill(.regularMaterial)
                 }

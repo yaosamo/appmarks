@@ -37,7 +37,7 @@ struct Style: Codable, Equatable {
     var switcherHeight = 32.0
     var switcherSpacing = 6.0
     var switcherCornerRadius = 5.0
-    /// The box the appmark under the pointer grows to fit.
+    /// The square the appmark under the pointer grows to.
     var switcherHoverSize = 80.0
     var switcherBackground = true
     var switcherShowIcon = true
