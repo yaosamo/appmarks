@@ -39,7 +39,6 @@ struct Style: Codable, Equatable {
     var switcherCornerRadius = 5.0
     /// The square the appmark under the pointer grows to.
     var switcherHoverSize = 80.0
-    var switcherBackground = true
     var switcherShowIcon = true
 
     var showIcon = true
@@ -322,7 +321,6 @@ private struct SettingsView: View {
             SliderRow("Spacing", $settings.style.switcherSpacing, 0...30)
             SliderRow("Corner radius", $settings.style.switcherCornerRadius, 0...20)
             SliderRow("Hover size", $settings.style.switcherHoverSize, 40...400, unit: "px")
-            Toggle("Background", isOn: $settings.style.switcherBackground)
             Toggle("App icon", isOn: $settings.style.switcherShowIcon)
         }
         Section("Motion") {
