@@ -161,10 +161,10 @@ final class SwitcherPanel: NSPanel {
     }
 }
 
-/// Where each appmark sits, at rest and magnified around the pointer the way the Dock does it. The
-/// pointer's appmark grows to fit `switcherHoverSize` square and its neighbours less with distance;
-/// they grow away from the window, so the edge facing it stays put. The panel is sized up front for
-/// the most growth the pointer can cause, and `resting` is the box the appmarks fill at rest.
+/// Where each appmark sits, at rest and with the one under the pointer grown to fit `switcherHoverSize`
+/// square. It grows away from the window, so the edge facing it stays put, and its neighbours slide
+/// aside rather than being covered. The panel is sized up front for the largest appmark grown, and
+/// `resting` is the box the appmarks fill at rest.
 struct AppmarkLayout {
     let size: CGSize
     let resting: CGRect
@@ -178,7 +178,6 @@ struct AppmarkLayout {
     private let across: [CGFloat]
     private let peak: [CGFloat]
     private let spacing: CGFloat
-    private let radius: CGFloat
     /// Where the resting stack starts along its axis, in the panel.
     private let start: CGFloat
 
@@ -204,14 +203,9 @@ struct AppmarkLayout {
         let peak = sizes.map { max(1, min(box / $0.width, box / $0.height)) }
         self.peak = peak
 
-        let pitch = (along.reduce(0, +) / CGFloat(max(along.count, 1))) + spacing
-        let radius = pitch * 2.5
-        self.radius = radius
         let length = along.reduce(0, +) + spacing * CGFloat(max(along.count - 1, 0))
-        // Growth along the axis can land on either side of the pointer. The bell covers about
-        // 2·radius/pitch appmarks, so the largest growths that many deep bound it.
-        let growth = zip(peak, along).map { ($0 - 1) * $1 }.sorted(by: >)
-        let margin = growth.prefix(Int((2 * radius / pitch).rounded(.up)) + 1).reduce(0, +)
+        // Growth along the axis can land wholly on either side of the pointer.
+        let margin = zip(peak, along).map { ($0 - 1) * $1 }.max() ?? 0
         // Room for the backdrop, shadows and the icon badge that pokes out of an appmark's corner.
         let edge = backdropPadding + 10
         start = edge + margin
@@ -232,10 +226,9 @@ struct AppmarkLayout {
         var at: CGFloat = 0
         if let pointer {
             at = (vertical ? pointer.y : pointer.x) - start
-            for i in along.indices {
-                let distance = abs(at - (restingStarts[i] + along[i] / 2)) / radius
-                let weight = distance >= 1 ? 0 : (1 + cos(.pi * distance)) / 2
-                scales[i] = 1 + (peak[i] - 1) * weight
+            // The appmark whose resting slot, gaps split down the middle, holds the pointer.
+            if let hovered = along.indices.last(where: { at >= restingStarts[$0] - spacing / 2 }) ?? along.indices.first {
+                scales[hovered] = peak[hovered]
             }
         }
         var starts: [CGFloat] = []
