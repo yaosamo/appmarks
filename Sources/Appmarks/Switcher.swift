@@ -16,27 +16,37 @@ final class SwitcherModel: ObservableObject {
     @Published var items: [SwitcherItem] = []
 }
 
+/// The pointer over the appmarks, in the panel's top-left-origin coordinates; nil when it is elsewhere.
+final class AppmarkHover: ObservableObject {
+    @Published var pointer: CGPoint?
+}
+
 /// Previews of the other windows on stage, pinned to a corner of the focused window. It follows focus
 /// rather than sitting on every window, since a window behind would cover its own copy anyway.
 final class SwitcherPanel: NSPanel {
     private let host: NSView
+    private let model: SwitcherModel
+    private let hover = AppmarkHover()
+    private var monitors: [Any] = []
     private var attachedID: CGWindowID = 0
     private var placedFor = CGRect.null
     private var style = Style()
-    private var size = CGSize.zero
+    private var layout = AppmarkLayout(items: [], style: Style())
     private var link: CADisplayLink?
     private var lastChange = Date.distantPast
     /// Where the panel is heading, in screen coordinates; it eases there rather than jumping.
     private var target = NSRect.zero
 
     init(model: SwitcherModel, onSelect: @escaping (CGWindowID) -> Void) {
-        host = FirstClickHostingView(rootView: SwitcherView(model: model, onSelect: onSelect))
+        self.model = model
+        host = FirstClickHostingView(rootView: SwitcherView(model: model, hover: hover, onSelect: onSelect))
         super.init(contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
         collectionBehavior = [.ignoresCycle, .fullScreenAuxiliary]
         backgroundColor = .clear
         isOpaque = false
         hasShadow = false
         hidesOnDeactivate = false
+        acceptsMouseMovedEvents = true
         contentView = host
     }
 
@@ -47,13 +57,13 @@ final class SwitcherPanel: NSPanel {
     /// directly above that window at normal level, so windows in front of it also cover the switcher.
     /// Showing up on a new window is instant; a move on the same window glides like `follow`.
     func attach(to window: CGRect, id: CGWindowID, style: Style) {
-        host.layoutSubtreeIfNeeded()
-        size = host.fittingSize
+        layout = AppmarkLayout(items: model.items, style: style)
         self.style = style
         let glide = id == attachedID && isVisible
         attachedID = id
         place(window, glide: glide)
         order(.above, relativeTo: Int(id))
+        trackPointer()
     }
 
     func isAttached(to id: CGWindowID, frame: CGRect, style: Style) -> Bool {
@@ -71,7 +81,30 @@ final class SwitcherPanel: NSPanel {
     override func orderOut(_ sender: Any?) {
         link?.invalidate()
         link = nil
+        monitors.forEach(NSEvent.removeMonitor)
+        monitors = []
+        hover.pointer = nil
         super.orderOut(sender)
+    }
+
+    /// Most of the panel is clear room to grow, and the pointer over a clear pixel belongs to the window
+    /// underneath, so SwiftUI hover would miss it leaving. Every move, wherever it goes, is checked
+    /// against the appmarks' current outline instead.
+    private func trackPointer() {
+        guard monitors.isEmpty else { return }
+        let moved = { [weak self] in MainActor.assumeIsolated { self?.pointerMoved() } }
+        monitors = [
+            NSEvent.addGlobalMonitorForEvents(matching: .mouseMoved) { _ in moved() },
+            NSEvent.addLocalMonitorForEvents(matching: .mouseMoved) { event in moved(); return event },
+        ].compactMap { $0 }
+    }
+
+    private func pointerMoved() {
+        let mouse = NSEvent.mouseLocation
+        let local = CGPoint(x: mouse.x - frame.minX, y: frame.maxY - mouse.y)
+        let outline = layout.backdrop(layout.frames(pointer: hover.pointer))
+        let pointer = outline.contains(local) ? local : nil
+        if pointer != hover.pointer { hover.pointer = pointer }
     }
 
     private func startLink() {
@@ -108,14 +141,18 @@ final class SwitcherPanel: NSPanel {
 
     private func place(_ window: CGRect, glide: Bool) {
         placedFor = window
-        var frame = style.switcherSpot.frame(size, on: window, inside: style.switcherInside,
+        // The resting appmarks and their backdrop are what sits on the window; the rest is room to grow.
+        let pinned = layout.resting.insetBy(dx: -layout.backdropPadding, dy: -layout.backdropPadding)
+        var frame = style.switcherSpot.frame(pinned.size, on: window, inside: style.switcherInside,
                                              gap: style.switcherOffsetX, inset: style.switcherOffsetY)
         // Outside a window that touches a screen edge, the appmarks would otherwise hang off the screen.
         let screen = Geometry.visibleArea
         frame.origin.x = max(screen.minX, min(frame.minX, screen.maxX - frame.width))
         frame.origin.y = max(screen.minY, min(frame.minY, screen.maxY - frame.height))
+        let panelTop = frame.minY - pinned.minY
         let primaryHeight = NSScreen.screens[0].frame.height
-        target = NSRect(x: frame.minX, y: primaryHeight - frame.maxY, width: size.width, height: size.height)
+        target = NSRect(x: frame.minX - pinned.minX, y: primaryHeight - panelTop - layout.size.height,
+                        width: layout.size.width, height: layout.size.height)
         if glide {
             startLink()
         } else {
@@ -124,66 +161,175 @@ final class SwitcherPanel: NSPanel {
     }
 }
 
+/// Where each appmark sits, at rest and magnified around the pointer the way the Dock does it. The
+/// pointer's appmark grows to fit `switcherHoverSize` square and its neighbours less with distance;
+/// they grow away from the window, so the edge facing it stays put. The panel is sized up front for
+/// the most growth the pointer can cause, and `resting` is the box the appmarks fill at rest.
+struct AppmarkLayout {
+    let size: CGSize
+    let resting: CGRect
+    let backdropPadding: CGFloat
+    let cornerRadius: CGFloat
+
+    private let vertical: Bool
+    /// Growing toward smaller x (a column left of its window edge) or smaller y (a row above it).
+    private let growsTowardStart: Bool
+    private let along: [CGFloat]
+    private let across: [CGFloat]
+    private let peak: [CGFloat]
+    private let spacing: CGFloat
+    private let radius: CGFloat
+    /// Where the resting stack starts along its axis, in the panel.
+    private let start: CGFloat
+
+    init(items: [SwitcherItem], style: Style) {
+        let spot = style.switcherSpot
+        let vertical = spot.isVertical
+        self.vertical = vertical
+        growsTowardStart = ((vertical ? spot.unit.x : spot.unit.y) == 0) != style.switcherInside
+        backdropPadding = style.switcherBackground ? 5 : 0
+        cornerRadius = style.switcherCornerRadius
+        spacing = style.switcherSpacing * style.gapScale
+
+        let height = CGFloat(style.switcherHeight)
+        let sizes = items.map { item -> CGSize in
+            let aspect = item.thumbnail.map { $0.size.height > 0 ? $0.size.width / $0.size.height : 1.5 } ?? 1.5
+            return CGSize(width: height * aspect, height: height)
+        }
+        let box = CGFloat(style.switcherHoverSize)
+        let along = sizes.map { vertical ? $0.height : $0.width }
+        let across = sizes.map { vertical ? $0.width : $0.height }
+        self.along = along
+        self.across = across
+        let peak = sizes.map { max(1, min(box / $0.width, box / $0.height)) }
+        self.peak = peak
+
+        let pitch = (along.reduce(0, +) / CGFloat(max(along.count, 1))) + spacing
+        let radius = pitch * 2.5
+        self.radius = radius
+        let length = along.reduce(0, +) + spacing * CGFloat(max(along.count - 1, 0))
+        // Growth along the axis can land on either side of the pointer. The bell covers about
+        // 2·radius/pitch appmarks, so the largest growths that many deep bound it.
+        let growth = zip(peak, along).map { ($0 - 1) * $1 }.sorted(by: >)
+        let margin = growth.prefix(Int((2 * radius / pitch).rounded(.up)) + 1).reduce(0, +)
+        // Room for the backdrop, shadows and the icon badge that pokes out of an appmark's corner.
+        let edge = backdropPadding + 10
+        start = edge + margin
+        let restingCross = across.max() ?? 0
+        let crossExtent = (zip(across, peak).map { $0 * $1 }.max() ?? 0) + 2 * edge
+        let crossStart = growsTowardStart ? crossExtent - edge - restingCross : edge
+        let alongExtent = length + 2 * (edge + margin)
+        size = vertical ? CGSize(width: crossExtent, height: alongExtent) : CGSize(width: alongExtent, height: crossExtent)
+        resting = vertical ? CGRect(x: crossStart, y: start, width: restingCross, height: length)
+                           : CGRect(x: start, y: crossStart, width: length, height: restingCross)
+    }
+
+    /// Each appmark's frame in the panel (top-left origin) with the pointer at `pointer`, or at rest.
+    /// The stack shifts so the spot under the pointer stays under it, as in the Dock.
+    func frames(pointer: CGPoint?) -> [CGRect] {
+        let restingStarts = along.indices.map { i in along[..<i].reduce(0, +) + spacing * CGFloat(i) }
+        var scales = Array(repeating: CGFloat(1), count: along.count)
+        var at: CGFloat = 0
+        if let pointer {
+            at = (vertical ? pointer.y : pointer.x) - start
+            for i in along.indices {
+                let distance = abs(at - (restingStarts[i] + along[i] / 2)) / radius
+                let weight = distance >= 1 ? 0 : (1 + cos(.pi * distance)) / 2
+                scales[i] = 1 + (peak[i] - 1) * weight
+            }
+        }
+        var starts: [CGFloat] = []
+        var cursor: CGFloat = 0
+        for i in along.indices {
+            starts.append(cursor)
+            cursor += along[i] * scales[i] + spacing
+        }
+        // Where the pointer's resting spot lands once magnified; the difference pins it in place.
+        var landed = at
+        for i in along.indices.reversed() where at >= restingStarts[i] {
+            let into = at - restingStarts[i]
+            landed = into <= along[i] ? starts[i] + into * scales[i] : starts[i] + along[i] * scales[i] + (into - along[i])
+            break
+        }
+        let shift = pointer == nil ? 0 : at - landed
+
+        return along.indices.map { i in
+            let length = along[i] * scales[i], thickness = across[i] * scales[i]
+            let a = start + starts[i] + shift
+            let c = growsTowardStart ? resting.maxEdge(vertical: vertical) - thickness : resting.minEdge(vertical: vertical)
+            return vertical ? CGRect(x: c, y: a, width: thickness, height: length)
+                            : CGRect(x: a, y: c, width: length, height: thickness)
+        }
+    }
+
+    func backdrop(_ frames: [CGRect]) -> CGRect {
+        frames.reduce(CGRect.null) { $0.union($1) }.insetBy(dx: -backdropPadding, dy: -backdropPadding)
+    }
+}
+
+private extension CGRect {
+    /// The cross-axis edges: x for a column, y for a row.
+    func minEdge(vertical: Bool) -> CGFloat { vertical ? minX : minY }
+    func maxEdge(vertical: Bool) -> CGFloat { vertical ? maxX : maxY }
+}
+
 private struct SwitcherView: View {
     @ObservedObject var model: SwitcherModel
+    @ObservedObject var hover: AppmarkHover
     @ObservedObject var settings = Settings.shared
     let onSelect: (CGWindowID) -> Void
 
     var body: some View {
         let style = settings.style
-        let spacing = style.switcherSpacing * style.gapScale
-        let layout = style.switcherSpot.isVertical
-            ? AnyLayout(VStackLayout(alignment: style.switcherSpot.stackAlignment, spacing: spacing))
-            : AnyLayout(HStackLayout(spacing: spacing))
-        layout {
-            ForEach(model.items) { item in
-                SwitcherChip(item: item, style: style)
+        let layout = AppmarkLayout(items: model.items, style: style)
+        let frames = layout.frames(pointer: hover.pointer)
+        let backdrop = layout.backdrop(frames)
+        ZStack(alignment: .topLeading) {
+            Group {
+                if style.switcherBackground {
+                    Backdrop(cornerRadius: layout.cornerRadius + 4)
+                        .overlay(RoundedRectangle(cornerRadius: layout.cornerRadius + 4).strokeBorder(.primary.opacity(0.1)))
+                }
+            }
+            .frame(width: backdrop.width, height: backdrop.height)
+            .offset(x: backdrop.minX, y: backdrop.minY)
+            ForEach(Array(zip(model.items, frames)), id: \.0.id) { item, frame in
+                SwitcherChip(item: item, style: style, size: frame.size)
+                    .offset(x: frame.minX, y: frame.minY)
                     .onTapGesture { onSelect(item.id) }
             }
         }
-        .padding(style.switcherBackground ? 5 : 0)
-        .background {
-            if style.switcherBackground {
-                Backdrop(cornerRadius: style.switcherCornerRadius + 4)
-                    .overlay(RoundedRectangle(cornerRadius: style.switcherCornerRadius + 4).strokeBorder(.primary.opacity(0.1)))
-            }
-        }
-        // Room for a hovered appmark to grow inside the panel. Previews are up to about twice as wide
-        // as they are tall, so a side grows by at most height × (scale − 1).
-        .padding(style.switcherHeight * (style.switcherHoverScale - 1) + 4)
-        .fixedSize()
+        .frame(width: layout.size.width, height: layout.size.height, alignment: .topLeading)
+        .animation(.spring(response: 0.2, dampingFraction: 0.9), value: hover.pointer)
     }
 }
 
 private struct SwitcherChip: View {
     let item: SwitcherItem
     let style: Style
-    @State private var hovering = false
+    let size: CGSize
 
     var body: some View {
+        let badge = min(size.height * 0.5, 32)
         ZStack(alignment: .bottomTrailing) {
             Group {
                 if let thumbnail = item.thumbnail {
-                    Image(nsImage: thumbnail).resizable().aspectRatio(contentMode: .fit)
+                    Image(nsImage: thumbnail).resizable()
                 } else {
                     RoundedRectangle(cornerRadius: style.switcherCornerRadius).fill(.regularMaterial)
-                        .aspectRatio(1.5, contentMode: .fit)
                 }
             }
-            .frame(height: style.switcherHeight)
+            .frame(width: size.width, height: size.height)
             .clipShape(RoundedRectangle(cornerRadius: style.switcherCornerRadius))
             .overlay(RoundedRectangle(cornerRadius: style.switcherCornerRadius).stroke(.primary.opacity(0.15), lineWidth: 0.5))
             .shadow(color: .black.opacity(0.3), radius: 3, y: 1)
             if style.showIcon, style.switcherShowIcon, let icon = item.icon {
                 Image(nsImage: icon).resizable()
-                    .frame(width: style.switcherHeight * 0.5, height: style.switcherHeight * 0.5)
+                    .frame(width: badge, height: badge)
                     .offset(x: 4, y: 4)
             }
         }
-        .scaleEffect(hovering ? style.switcherHoverScale : 1)
-        .zIndex(hovering ? 1 : 0)
-        .animation(.easeOut(duration: style.hoverDuration), value: hovering)
-        .onHover { hovering = $0 }
+        .frame(width: size.width, height: size.height)
     }
 }
 
