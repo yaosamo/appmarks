@@ -41,6 +41,8 @@ struct Style: Codable, Equatable {
     var switcherHoverSize = 80.0
     var switcherBackground = true
     var switcherShowIcon = true
+    /// Parked windows follow the stage ones, so the strip is a click away from any window too.
+    var switcherIncludeParked = true
 
     var showIcon = true
     var iconSize = 36.0
@@ -242,6 +244,7 @@ private struct SettingsView: View {
                             Text("Outside").tag(false)
                             Text("Inside").tag(true)
                         }
+                        Toggle("Include parked windows", isOn: $settings.style.switcherIncludeParked)
                     }
                     .disabled(!settings.style.showSwitcher)
                 }

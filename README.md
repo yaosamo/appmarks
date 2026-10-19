@@ -1,6 +1,6 @@
 # Appmarks
 
-A personal Stage Manager: every window except the ones you're working in is parked as a thumbnail on the side of the screen, and the other windows on stage are pinned as small appmarks to the focused window.
+A personal Stage Manager: every window except the ones you're working in is parked as a thumbnail on the side of the screen, and the other windows, on stage and parked, are pinned as small appmarks to the focused window.
 
 - **Click a parked window** to bring it to the middle of the screen. Windows already on stage stay where they are.
 - **Option-click** (or right-click, then *Show Only This Window*) to park everything else.
@@ -13,7 +13,7 @@ A personal Stage Manager: every window except the ones you're working in is park
 Menu bar icon → **Settings…** (⌘,):
 
 - **Parked windows**: pick the spot on a screen sketch (left or right, top, center or bottom), size, density, app icons and labels.
-- **Appmarks on windows**: pick the spot on a window sketch (any corner or the middle of any side), inside or outside the window.
+- **Appmarks on windows**: pick the spot on a window sketch (any corner or the middle of any side), inside or outside the window. **Include parked windows** (on by default) adds the strip's windows after the stage ones; clicking one brings it onto the stage.
 - **Open at login**: on by default (set on first launch); turning it off here or in System Settings → General → Login Items sticks.
 - **Always dark**: otherwise the panels follow the system's light or dark appearance.
 - **Fine-tuning** shows every underlying value; Copy/Paste moves them around as JSON.

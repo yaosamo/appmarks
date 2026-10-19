@@ -47,7 +47,12 @@ final class StageManager {
     private let switcherModel = SwitcherModel()
     private var recentFocus: [CGWindowID] = []
     private lazy var switcher = SwitcherPanel(model: switcherModel) { [weak self] id in
-        self?.focusStageWindow(id)
+        guard let self else { return }
+        if parked.contains(id) {
+            select(id, replacingStage: false)
+        } else {
+            focusStageWindow(id)
+        }
     }
     private lazy var panel = StripPanel(model: strip) { [weak self] id, replace in
         self?.select(id, replacingStage: replace)
@@ -279,7 +284,8 @@ final class StageManager {
         }
     }
 
-    /// Pins previews of the other stage windows to the focused window's corner, most recently used first.
+    /// Pins previews of the other stage windows to the focused window's corner, most recently used first,
+    /// then the parked windows in strip order.
     func updateSwitcher() {
         let style = Settings.shared.style
         // While Appmarks' own Settings window is focused, stay on the last window so tuning is visible.
@@ -293,6 +299,7 @@ final class StageManager {
         recentFocus.insert(id, at: 0)
         let others = stage.filter { $0 != id && windows[$0]?.present == true }
             .sorted { (recentFocus.firstIndex(of: $0) ?? .max) < (recentFocus.firstIndex(of: $1) ?? .max) }
+            + (style.switcherIncludeParked ? parked.filter { windows[$0]?.present == true } : [])
         guard !others.isEmpty else { return switcher.orderOut(nil) }
 
         let items = others.compactMap { windows[$0] }.map {
