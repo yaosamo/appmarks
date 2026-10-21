@@ -155,16 +155,16 @@ final class WidgetPanel: NSPanel {
     }
 
     private func resolve(_ anchor: WidgetAnchor) -> Placement {
-        let screen = Geometry.visibleArea
         switch anchor {
         case .free(let origin):
+            let screen = Geometry.belowMenuBar
             let body = clamped(CGRect(origin: origin, size: bodySize(vertical: model.vertical)), to: screen)
             // Hovered appmarks grow toward the middle of the screen.
             return Placement(body: body, vertical: model.vertical,
                              growsTowardStart: model.vertical ? body.midX > screen.midX : body.midY > screen.midY)
         case .screen(let spot):
             let vertical = isVertical(spot)
-            let body = spot.frame(bodySize(vertical: vertical), on: screen, inside: true, gap: Self.margin, inset: Self.margin)
+            let body = spot.frame(bodySize(vertical: vertical), on: area(of: spot), inside: true, gap: Self.margin, inset: Self.margin)
             return Placement(body: body, vertical: vertical, growsTowardStart: (vertical ? spot.unit.x : spot.unit.y) == 1)
         case .window(let id, let side, let offset):
             guard let window = WindowServer.frames(of: [id]).first else { return resolve(.free(placement?.body.origin ?? .zero)) }
@@ -197,6 +197,12 @@ final class WidgetPanel: NSPanel {
         // Hovered appmarks grow away from the window outside it, and into it when tucked.
         return Placement(body: body, vertical: vertical, growsTowardStart: before == fits,
                          host: id, hostFrame: window, tucked: !fits)
+    }
+
+    /// The middle of an edge sits clear of the Dock, on top of it at the bottom; a corner goes right
+    /// into the screen's corner, beside the Dock.
+    private func area(of spot: WindowSpot) -> CGRect {
+        spot.unit.x != 0.5 && spot.unit.y != 0.5 ? Geometry.belowMenuBar : Geometry.visibleArea
     }
 
     /// A column on the screen's left and right, a row on its top and bottom; a corner keeps either.
@@ -384,10 +390,9 @@ final class WidgetPanel: NSPanel {
     /// Where the pointer takes the appmarks: held on the current snap until pulled clearly off it, then
     /// onto the nearest sticky point, the side of the frontmost window it reaches, or nowhere in particular.
     private func snap(_ pointer: CGPoint, _ drag: Drag) -> WidgetAnchor {
-        let screen = Geometry.visibleArea
         switch anchor {
         case .screen(let spot):
-            if distance(from: point(of: spot, on: screen), to: freeBody(pointer, vertical: isVertical(spot), drag)) < Self.release {
+            if distance(from: point(of: spot), to: freeBody(pointer, vertical: isVertical(spot), drag)) < Self.release {
                 return anchor
             }
         case .window(let id, let side, _):
@@ -399,7 +404,7 @@ final class WidgetPanel: NSPanel {
             break
         }
         for spot in WindowSpot.allCases
-        where distance(from: point(of: spot, on: screen), to: freeBody(pointer, vertical: isVertical(spot), drag)) < Self.pointReach {
+        where distance(from: point(of: spot), to: freeBody(pointer, vertical: isVertical(spot), drag)) < Self.pointReach {
             return .screen(spot)
         }
         for (index, window) in drag.windows.enumerated() {
@@ -433,8 +438,9 @@ final class WidgetPanel: NSPanel {
         return CGRect(x: pointer.x - x * size.width, y: pointer.y - y * size.height, width: size.width, height: size.height)
     }
 
-    private func point(of spot: WindowSpot, on screen: CGRect) -> CGPoint {
-        CGPoint(x: screen.minX + screen.width * spot.unit.x, y: screen.minY + screen.height * spot.unit.y)
+    private func point(of spot: WindowSpot) -> CGPoint {
+        let screen = area(of: spot)
+        return CGPoint(x: screen.minX + screen.width * spot.unit.x, y: screen.minY + screen.height * spot.unit.y)
     }
 
     private func distance(from point: CGPoint, to rect: CGRect) -> CGFloat {

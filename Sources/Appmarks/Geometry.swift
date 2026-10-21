@@ -12,6 +12,12 @@ enum Geometry {
 
     static var visibleArea: CGRect { toAX(primary.visibleFrame) }
 
+    /// The whole screen below the menu bar, Dock included: the menu bar spans the screen, the Dock rarely does.
+    static var belowMenuBar: CGRect {
+        let screen = toAX(primary.frame), visible = visibleArea
+        return CGRect(x: screen.minX, y: visible.minY, width: screen.width, height: screen.maxY - visible.minY)
+    }
+
     static var stageArea: CGRect {
         var area = visibleArea
         let style = Settings.shared.style
