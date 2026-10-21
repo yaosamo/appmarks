@@ -5,8 +5,8 @@ import SwiftUI
 /// Where the floating appmarks rest: anywhere, on one of the screen's eight sticky points, or on a side
 /// of a window, which they then follow like the attached appmarks do.
 enum WidgetAnchor: Equatable {
-    /// The appmarks' top-left, in Accessibility coordinates.
-    case free(CGPoint)
+    /// The appmarks' top-left, in Accessibility coordinates, as a column or a row.
+    case free(CGPoint, vertical: Bool)
     case screen(WindowSpot)
     /// On `side` (`.top`, `.right`, `.bottom` or `.left`) of the active window, moving to each window
     /// that becomes active; `offset` is how far along that side, from 0 at its start to 1 at its end.
@@ -54,6 +54,8 @@ final class WidgetPanel: NSPanel {
     private static let margin: CGFloat = 8
     /// How close the appmarks have to come to a sticky point, and to a window's side, to snap.
     private static let pointReach: CGFloat = 40
+    /// How close the pointer has to come to a display edge for the appmarks to turn along it.
+    private static let turnReach: CGFloat = 120
     private static let edgeReach: CGFloat = 24
     /// How far they have to be pulled off a snap to come free again.
     private static let release: CGFloat = 64
@@ -155,19 +157,19 @@ final class WidgetPanel: NSPanel {
     private func relayout(glide: Bool = false) {
         if case .window(let id, _, _) = anchor, WindowServer.frames(of: [id]).isEmpty {
             // No window to sit on yet, or the last one closed: stay where they were.
-            anchor = placement.map { .free($0.body.origin) } ?? .screen(.bottom)
+            anchor = placement.map { .free($0.body.origin, vertical: $0.vertical) } ?? .screen(.bottom)
         }
         apply(resolve(anchor), glide: glide)
     }
 
     private func resolve(_ anchor: WidgetAnchor) -> Placement {
         switch anchor {
-        case .free(let origin):
+        case .free(let origin, let vertical):
             let screen = Geometry.belowMenuBar
-            let body = clamped(CGRect(origin: origin, size: bodySize(vertical: model.vertical)), to: screen)
+            let body = clamped(CGRect(origin: origin, size: bodySize(vertical: vertical)), to: screen)
             // Hovered appmarks grow toward the middle of the screen.
-            return Placement(body: body, vertical: model.vertical,
-                             growsTowardStart: model.vertical ? body.midX > screen.midX : body.midY > screen.midY)
+            return Placement(body: body, vertical: vertical,
+                             growsTowardStart: vertical ? body.midX > screen.midX : body.midY > screen.midY)
         case .screen(let spot):
             let vertical = isVertical(spot)
             let body = spot.frame(bodySize(vertical: vertical), on: area(of: spot), inside: true, gap: Self.margin, inset: Self.margin)
@@ -176,7 +178,7 @@ final class WidgetPanel: NSPanel {
             // Nothing else moves during a drag, and asking the window server right after moving the panel
             // waits out the move, about a frame, on every mouse event.
             guard let window = drag?.windows.first(where: { $0.id == id })?.frame ?? WindowServer.frames(of: [id]).first
-            else { return resolve(.free(placement?.body.origin ?? .zero)) }
+            else { return resolve(.free(placement?.body.origin ?? .zero, vertical: model.vertical)) }
             return onWindow(window, id: id, side: side, offset: offset)
         }
     }
@@ -390,9 +392,7 @@ final class WidgetPanel: NSPanel {
         }
         let next = snap(pointer, drag)
         if let snap = next.snap, snap != anchor.snap {
-            if case .window = next {
-                Click.play()
-            }
+            Click.play()
             NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .now)
         }
         anchor = next
@@ -437,7 +437,19 @@ final class WidgetPanel: NSPanel {
                 return .window(window.id, side: side, offset: offset)
             }
         }
-        return .free(freeBody(pointer, vertical: model.vertical, drag).origin)
+        let vertical = facing(pointer) ?? model.vertical
+        return .free(freeBody(pointer, vertical: vertical, drag).origin, vertical: vertical)
+    }
+
+    /// With the pointer near a display edge, the appmarks turn to lie along it: a column by the left and
+    /// right edges, a row by the top and bottom. Nil away from every edge, where they keep their shape.
+    private func facing(_ pointer: CGPoint) -> Bool? {
+        let screen = Geometry.belowMenuBar
+        let side = min(pointer.x - screen.minX, screen.maxX - pointer.x)
+        let end = min(pointer.y - screen.minY, screen.maxY - pointer.y)
+        guard min(side, end) < Self.turnReach else { return nil }
+        // In a corner, the shape they already have wins a near tie, so they don't flicker between the two.
+        return model.vertical ? side < end + 24 : side + 24 < end
     }
 
     /// Where along `side` the appmarks would start, if the pointer has them within `reach` of it.
@@ -496,19 +508,19 @@ final class WidgetPanel: NSPanel {
         if let raw = saved?["side"] as? String, let side = WindowSpot(rawValue: raw) {
             return (.window(0, side: side, offset: saved?["offset"] as? Double ?? 0.5), vertical)
         }
-        if let x = saved?["x"] as? Double, let y = saved?["y"] as? Double { return (.free(CGPoint(x: x, y: y)), vertical) }
+        if let x = saved?["x"] as? Double, let y = saved?["y"] as? Double { return (.free(CGPoint(x: x, y: y), vertical: vertical), vertical) }
         return (.screen(.bottom), false)
     }
 }
 
-/// A short, dry tick for snapping onto a window, made here because macOS ships no plain click sound.
+/// A short, dry tick for every snap, made here because macOS ships no plain click sound.
 /// It plays on its own queue: starting the audio output can take most of a second, which on the main
 /// thread froze the drag at the very moment of the snap.
 private enum Click {
     private static let queue = DispatchQueue(label: "Appmarks.click", qos: .userInteractive)
     private static var player: AVAudioPlayer?
     /// Silence on a loop, so the audio output, which sleeps when idle and takes up to half a second
-    /// to wake, is already running when the appmarks reach a window.
+    /// to wake, is already running when the appmarks snap.
     private static var silence: AVAudioPlayer?
 
     static func prepare() {

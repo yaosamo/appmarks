@@ -13,8 +13,8 @@ A personal Stage Manager: every window except the ones you're working in is park
 With **Park windows on the side** off in Settings, windows stay where they are and every open window is an appmark in one floating panel, in the order they opened, the focused one ringed.
 
 - **Click** an appmark to focus its window; **drag** anywhere else to move the panel.
-- It sticks to the middle of each screen edge and to each corner (a column on the sides, a row on the top and bottom), and drags freely anywhere else.
-- Dragged near a window's side it clicks onto it, slides along that side and follows the window. With no room outside the window, it tucks inside as a thin line that opens on hover.
+- It sticks, with a click, to the middle of each screen edge (above the Dock at the bottom) and to each corner, and drags freely anywhere else. Near the left or right display edge it turns into a column, near the top or bottom into a row.
+- Dragged near a side of the active window it clicks onto it and slides along that side; from then on it sits on that side of whichever window is active. With no room outside the window, it tucks inside as a thin line that opens on hover.
 
 ## Settings
 
