@@ -344,7 +344,7 @@ final class StageManager {
             SwitcherItem(id: $0.id, title: $0.title, icon: appInfo($0.pid).icon, thumbnail: $0.thumbnail,
                          isFocused: $0.id == recentFocus.first)
         }
-        widget.update(items: items, style: style)
+        widget.update(items: items, focused: recentFocus.first, style: style)
     }
 
     private func snapTargets() -> [(id: CGWindowID, frame: CGRect)] {

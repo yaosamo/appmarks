@@ -7,7 +7,8 @@ enum WidgetAnchor: Equatable {
     /// The appmarks' top-left, in Accessibility coordinates.
     case free(CGPoint)
     case screen(WindowSpot)
-    /// `side` is `.top`, `.right`, `.bottom` or `.left`; `offset` is how far along it the appmarks start.
+    /// On `side` (`.top`, `.right`, `.bottom` or `.left`) of the active window, moving to each window
+    /// that becomes active; `offset` is how far along that side, from 0 at its start to 1 at its end.
     case window(CGWindowID, side: WindowSpot, offset: CGFloat)
 
     /// What it is snapped to, ignoring the slide along a window's side, so a new value is a new snap.
@@ -56,11 +57,7 @@ final class WidgetPanel: NSPanel {
     /// How far they have to be pulled off a snap to come free again.
     private static let release: CGFloat = 64
     private static let defaultsKey = "widgetAnchor"
-    private static let click: NSSound? = {
-        let sound = NSSound(named: "Tink")
-        sound?.volume = 0.5
-        return sound
-    }()
+    private static let click = Click.sound
 
     private struct Placement {
         var body: CGRect
@@ -113,9 +110,15 @@ final class WidgetPanel: NSPanel {
     override var canBecomeKey: Bool { false }
     override var canBecomeMain: Bool { false }
 
-    func update(items: [SwitcherItem], style: Style) {
+    func update(items: [SwitcherItem], focused: CGWindowID?, style: Style) {
         guard !items.isEmpty else { return orderOut(nil) }
-        let changed = items != model.items || style != self.style || !isVisible
+        var moved = false
+        if case .window(let host, let side, let offset) = anchor, drag == nil, let focused, focused != host,
+           items.contains(where: { $0.id == focused }) {
+            anchor = .window(focused, side: side, offset: offset)
+            moved = true
+        }
+        let changed = moved || items != model.items || style != self.style || !isVisible
         if items != model.items { model.items = items }
         self.style = style
         if changed {
@@ -148,8 +151,8 @@ final class WidgetPanel: NSPanel {
 
     private func relayout(glide: Bool = false) {
         if case .window(let id, _, _) = anchor, WindowServer.frames(of: [id]).isEmpty {
-            // The host window closed: stay where it left the appmarks.
-            anchor = .free(placement?.body.origin ?? .zero)
+            // No window to sit on yet, or the last one closed: stay where they were.
+            anchor = placement.map { .free($0.body.origin) } ?? .screen(.bottom)
         }
         apply(resolve(anchor), glide: glide)
     }
@@ -172,7 +175,7 @@ final class WidgetPanel: NSPanel {
         }
     }
 
-    /// Outside `side` of the window, `offset` along it and kept within it; inside, tucked, when the
+    /// Outside `side` of the window, `offset` of the way along it; inside, tucked, when the
     /// window leaves no room on the screen outside that side.
     private func onWindow(_ window: CGRect, id: CGWindowID, side: WindowSpot, offset: CGFloat) -> Placement {
         let vertical = side.isVertical
@@ -181,7 +184,7 @@ final class WidgetPanel: NSPanel {
         let gap = style.switcherOffsetX
 
         let (start, length, own) = vertical ? (window.minY, window.height, size.height) : (window.minX, window.width, size.width)
-        var along = start + (own > length ? (length - own) / 2 : min(max(offset, 0), length - own))
+        var along = start + (length - own) * (own > length ? 0.5 : min(max(offset, 0), 1))
         let (screenStart, screenEnd) = vertical ? (screen.minY, screen.maxY) : (screen.minX, screen.maxX)
         along = max(screenStart, min(along, screenEnd - own))
 
@@ -371,8 +374,10 @@ final class WidgetPanel: NSPanel {
         }
         let next = snap(pointer, drag)
         if let snap = next.snap, snap != anchor.snap {
-            Self.click?.stop()
-            Self.click?.play()
+            if case .window = next {
+                Self.click?.stop()
+                Self.click?.play()
+            }
             NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .now)
         }
         anchor = next
@@ -428,7 +433,9 @@ final class WidgetPanel: NSPanel {
         let overlaps = vertical ? body.maxY > window.minY && body.minY < window.maxY
                                 : body.maxX > window.minX && body.minX < window.maxX
         guard gap < reach, overlaps else { return nil }
-        return vertical ? body.minY - window.minY : body.minX - window.minX
+        let (start, room) = vertical ? (body.minY - window.minY, window.height - body.height)
+                                     : (body.minX - window.minX, window.width - body.width)
+        return room > 0 ? min(max(start / room, 0), 1) : 0.5
     }
 
     /// The appmarks under the pointer, as a row or a column, held where they were grabbed.
@@ -449,13 +456,16 @@ final class WidgetPanel: NSPanel {
 
     // MARK: Saving
 
-    /// A window snap can't outlive the window, so it comes back as the spot the appmarks were left at.
     private func save() {
         guard let placement else { return }
         var saved: [String: Any] = ["vertical": model.vertical]
-        if case .screen(let spot) = anchor {
+        switch anchor {
+        case .screen(let spot):
             saved["spot"] = spot.rawValue
-        } else {
+        case .window(_, let side, let offset):
+            saved["side"] = side.rawValue
+            saved["offset"] = offset
+        case .free:
             saved["x"] = placement.body.minX
             saved["y"] = placement.body.minY
         }
@@ -466,9 +476,38 @@ final class WidgetPanel: NSPanel {
         let saved = UserDefaults.standard.dictionary(forKey: defaultsKey)
         let vertical = saved?["vertical"] as? Bool ?? false
         if let raw = saved?["spot"] as? String, let spot = WindowSpot(rawValue: raw) { return (.screen(spot), vertical) }
+        // Picked up by the first active window.
+        if let raw = saved?["side"] as? String, let side = WindowSpot(rawValue: raw) {
+            return (.window(0, side: side, offset: saved?["offset"] as? Double ?? 0.5), vertical)
+        }
         if let x = saved?["x"] as? Double, let y = saved?["y"] as? Double { return (.free(CGPoint(x: x, y: y)), vertical) }
         return (.screen(.bottom), false)
     }
+}
+
+/// A short, dry tick for snapping onto a window, made here because macOS ships no plain click sound.
+private enum Click {
+    static let sound: NSSound? = {
+        let rate = 44_100, count = rate * 15 / 1000
+        var samples = [Int16]()
+        var noise: UInt32 = 0x1234_5678
+        for i in 0..<count {
+            let t = Double(i) / Double(rate)
+            noise = noise &* 1_664_525 &+ 1_013_904_223
+            let hiss = Double(noise >> 8) / Double(1 << 24) * 2 - 1
+            let value = (sin(2 * .pi * 2_400 * t) * 0.7 + hiss * 0.3) * exp(-t / 0.0022)
+            samples.append(Int16(value * 0.6 * Double(Int16.max)))
+        }
+        var wav = Data()
+        func append<T: FixedWidthInteger>(_ value: T) { withUnsafeBytes(of: value.littleEndian) { wav.append(contentsOf: $0) } }
+        let bytes = UInt32(count * 2)
+        wav.append(contentsOf: Array("RIFF".utf8)); append(36 + bytes)
+        wav.append(contentsOf: Array("WAVEfmt ".utf8)); append(UInt32(16)); append(UInt16(1)); append(UInt16(1))
+        append(UInt32(rate)); append(UInt32(rate * 2)); append(UInt16(2)); append(UInt16(16))
+        wav.append(contentsOf: Array("data".utf8)); append(bytes)
+        samples.forEach(append)
+        return NSSound(data: wav)
+    }()
 }
 
 private struct WidgetView: View {
