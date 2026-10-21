@@ -6,9 +6,10 @@ struct SwitcherItem: Identifiable, Equatable {
     let title: String
     let icon: NSImage?
     let thumbnail: NSImage?
+    var isFocused = false
 
     static func == (a: Self, b: Self) -> Bool {
-        a.id == b.id && a.title == b.title && a.thumbnail === b.thumbnail
+        a.id == b.id && a.title == b.title && a.thumbnail === b.thumbnail && a.isFocused == b.isFocused
     }
 }
 
@@ -185,9 +186,13 @@ struct AppmarkLayout {
 
     init(items: [SwitcherItem], style: Style) {
         let spot = style.switcherSpot
-        let vertical = spot.isVertical
+        self.init(items: items, style: style, vertical: spot.isVertical,
+                  growsTowardStart: ((spot.isVertical ? spot.unit.x : spot.unit.y) == 0) != style.switcherInside)
+    }
+
+    init(items: [SwitcherItem], style: Style, vertical: Bool, growsTowardStart: Bool) {
         self.vertical = vertical
-        growsTowardStart = ((vertical ? spot.unit.x : spot.unit.y) == 0) != style.switcherInside
+        self.growsTowardStart = growsTowardStart
         backdropPadding = style.switcherBackground ? 5 : 0
         cornerRadius = style.switcherCornerRadius
         spacing = style.switcherSpacing * style.gapScale
@@ -303,7 +308,7 @@ private struct SwitcherView: View {
     }
 }
 
-private struct SwitcherChip: View {
+struct SwitcherChip: View {
     let item: SwitcherItem
     let style: Style
     let size: CGSize
@@ -321,7 +326,8 @@ private struct SwitcherChip: View {
             }
             .frame(width: size.width, height: size.height)
             .clipShape(RoundedRectangle(cornerRadius: style.switcherCornerRadius))
-            .overlay(RoundedRectangle(cornerRadius: style.switcherCornerRadius).stroke(.primary.opacity(0.15), lineWidth: 0.5))
+            .overlay(RoundedRectangle(cornerRadius: style.switcherCornerRadius)
+                .strokeBorder(item.isFocused ? Color.accentColor : .primary.opacity(0.15), lineWidth: item.isFocused ? 2 : 0.5))
             .shadow(color: .black.opacity(0.3), radius: 3, y: 1)
             if style.showIcon, style.switcherShowIcon, let icon = item.icon {
                 Image(nsImage: icon).resizable()
@@ -335,7 +341,7 @@ private struct SwitcherChip: View {
 
 /// Behind-window vibrancy, which follows the system's light or dark appearance. SwiftUI materials only
 /// blend with the panel's own clear content, so they render the same murky dark in either mode.
-private struct Backdrop: NSViewRepresentable {
+struct Backdrop: NSViewRepresentable {
     let cornerRadius: CGFloat
 
     func makeNSView(context: Context) -> NSVisualEffectView {

@@ -8,6 +8,14 @@ A personal Stage Manager: every window except the ones you're working in is park
 - **Cmd-Tab or a Dock click** onto a parked window brings it onto the stage too.
 - **Pause** (menu bar icon) or **Quit** puts every window back where it was.
 
+## Floating appmarks (experiment, the default for now)
+
+With **Park windows on the side** off in Settings, windows stay where they are and every open window is an appmark in one floating panel, in the order they opened, the focused one ringed.
+
+- **Click** an appmark to focus its window; **drag** anywhere else to move the panel.
+- It sticks to the middle of each screen edge and to each corner (a column on the sides, a row on the top and bottom), and drags freely anywhere else.
+- Dragged near a window's side it clicks onto it, slides along that side and follows the window. With no room outside the window, it tucks inside as a thin line that opens on hover.
+
 ## Settings
 
 Menu bar icon → **Settings…** (⌘,):

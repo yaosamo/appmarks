@@ -2,6 +2,8 @@ import AppKit
 import SwiftUI
 
 struct Style: Codable, Equatable {
+    /// Stage Manager mode: park every window but the ones in use on the side. Off, the appmarks float.
+    var parkWindows = false
     var stripPosition = StripPosition.left
     var itemSize = ItemSize.standard
     var density = Density.standard
@@ -221,6 +223,12 @@ private struct SettingsView: View {
     var body: some View {
         VStack(spacing: 0) {
             Form {
+                Section {
+                    Toggle(isOn: $settings.style.parkWindows) {
+                        Text("Park windows on the side")
+                        Text("When off, windows stay put and every one of them is an appmark in a panel you can drag anywhere or snap onto a window.")
+                    }
+                }
                 Section("Parked windows") {
                     ScreenPicker(selection: $settings.style.stripPosition)
                     Picker("Size", selection: $settings.style.itemSize) {
@@ -243,7 +251,7 @@ private struct SettingsView: View {
                             Text("Inside").tag(true)
                         }
                     }
-                    .disabled(!settings.style.showSwitcher)
+                    .disabled(!settings.style.showSwitcher || !settings.style.parkWindows)
                 }
                 Section {
                     Toggle("Open at login", isOn: Binding(

@@ -1,0 +1,506 @@
+import AppKit
+import SwiftUI
+
+/// Where the floating appmarks rest: anywhere, on one of the screen's eight sticky points, or on a side
+/// of a window, which they then follow like the attached appmarks do.
+enum WidgetAnchor: Equatable {
+    /// The appmarks' top-left, in Accessibility coordinates.
+    case free(CGPoint)
+    case screen(WindowSpot)
+    /// `side` is `.top`, `.right`, `.bottom` or `.left`; `offset` is how far along it the appmarks start.
+    case window(CGWindowID, side: WindowSpot, offset: CGFloat)
+
+    /// What it is snapped to, ignoring the slide along a window's side, so a new value is a new snap.
+    var snap: String? {
+        switch self {
+        case .free: nil
+        case .screen(let spot): "screen \(spot)"
+        case .window(let id, let side, _): "\(id) \(side)"
+        }
+    }
+}
+
+final class WidgetModel: ObservableObject {
+    @Published var items: [SwitcherItem] = []
+    @Published var vertical = false
+    @Published var growsTowardStart = false
+    /// Tucked inside a window with no room outside it, the appmarks fold into a line until hovered.
+    @Published var collapsed = false
+
+    func layout(_ style: Style) -> AppmarkLayout {
+        AppmarkLayout(items: items, style: style, vertical: vertical, growsTowardStart: growsTowardStart)
+    }
+
+    /// The folded line, centred on the appmarks and against the window edge they are tucked inside.
+    func line(in resting: CGRect) -> CGRect {
+        let thickness: CGFloat = 6
+        if vertical {
+            let length = min(resting.height, 56)
+            return CGRect(x: growsTowardStart ? resting.maxX - thickness : resting.minX, y: resting.midY - length / 2,
+                          width: thickness, height: length)
+        }
+        let length = min(resting.width, 56)
+        return CGRect(x: resting.midX - length / 2, y: growsTowardStart ? resting.maxY - thickness : resting.minY,
+                      width: length, height: thickness)
+    }
+}
+
+/// Every open window as an appmark in one panel that floats on screen. Drag it anywhere; near a screen
+/// edge's middle or a corner it sticks there, and near a window's side it clicks onto it, slides along
+/// it and follows the window around.
+final class WidgetPanel: NSPanel {
+    private static let margin: CGFloat = 8
+    /// How close the appmarks have to come to a sticky point, and to a window's side, to snap.
+    private static let pointReach: CGFloat = 40
+    private static let edgeReach: CGFloat = 24
+    /// How far they have to be pulled off a snap to come free again.
+    private static let release: CGFloat = 64
+    private static let defaultsKey = "widgetAnchor"
+    private static let click: NSSound? = {
+        let sound = NSSound(named: "Tink")
+        sound?.volume = 0.5
+        return sound
+    }()
+
+    private struct Placement {
+        var body: CGRect
+        var vertical: Bool
+        var growsTowardStart: Bool
+        var host: CGWindowID?
+        var hostFrame: CGRect?
+        var tucked = false
+    }
+
+    private struct Drag {
+        let start: CGPoint
+        /// Where on the appmarks they were grabbed, as fractions along and across the stack, so the
+        /// grab point stays under the pointer when a snap turns a row into a column.
+        let grab: (along: CGFloat, across: CGFloat)
+        /// Snap targets, front to back; nothing else moves while the appmarks are dragged.
+        let windows: [(id: CGWindowID, frame: CGRect)]
+        var moved = false
+    }
+
+    private let model = WidgetModel()
+    private let hover = AppmarkHover()
+    private let onSelect: (CGWindowID) -> Void
+    private let snapTargets: () -> [(id: CGWindowID, frame: CGRect)]
+    private var style = Style()
+    private var layout = AppmarkLayout(items: [], style: Style())
+    private var anchor: WidgetAnchor
+    private var placement: Placement?
+    private var drag: Drag?
+    private var monitors: [Any] = []
+    private var link: CADisplayLink?
+    private var lastChange = Date.distantPast
+    private var target = NSRect.zero
+
+    init(onSelect: @escaping (CGWindowID) -> Void, snapTargets: @escaping () -> [(id: CGWindowID, frame: CGRect)]) {
+        self.onSelect = onSelect
+        self.snapTargets = snapTargets
+        let (anchor, vertical) = Self.restore()
+        self.anchor = anchor
+        super.init(contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+        model.vertical = vertical
+        backgroundColor = .clear
+        isOpaque = false
+        hasShadow = false
+        hidesOnDeactivate = false
+        acceptsMouseMovedEvents = true
+        contentView = FirstClickHostingView(rootView: WidgetView(model: model, hover: hover))
+    }
+
+    override var canBecomeKey: Bool { false }
+    override var canBecomeMain: Bool { false }
+
+    func update(items: [SwitcherItem], style: Style) {
+        guard !items.isEmpty else { return orderOut(nil) }
+        let changed = items != model.items || style != self.style || !isVisible
+        if items != model.items { model.items = items }
+        self.style = style
+        if changed {
+            relayout()
+        } else {
+            // Focusing the host window raises it over the appmarks.
+            stack(above: placement?.host)
+        }
+        trackPointer()
+    }
+
+    /// The host window moved or resized: glide after it, as `SwitcherPanel.follow` does.
+    func follow() {
+        guard case .window = anchor else { return }
+        lastChange = Date()
+        startLink()
+    }
+
+    override func orderOut(_ sender: Any?) {
+        link?.invalidate()
+        link = nil
+        monitors.forEach(NSEvent.removeMonitor)
+        monitors = []
+        hover.hovered = nil
+        drag = nil
+        super.orderOut(sender)
+    }
+
+    // MARK: Placement
+
+    private func relayout(glide: Bool = false) {
+        if case .window(let id, _, _) = anchor, WindowServer.frames(of: [id]).isEmpty {
+            // The host window closed: stay where it left the appmarks.
+            anchor = .free(placement?.body.origin ?? .zero)
+        }
+        apply(resolve(anchor), glide: glide)
+    }
+
+    private func resolve(_ anchor: WidgetAnchor) -> Placement {
+        let screen = Geometry.visibleArea
+        switch anchor {
+        case .free(let origin):
+            let body = clamped(CGRect(origin: origin, size: bodySize(vertical: model.vertical)), to: screen)
+            // Hovered appmarks grow toward the middle of the screen.
+            return Placement(body: body, vertical: model.vertical,
+                             growsTowardStart: model.vertical ? body.midX > screen.midX : body.midY > screen.midY)
+        case .screen(let spot):
+            let vertical = isVertical(spot)
+            let body = spot.frame(bodySize(vertical: vertical), on: screen, inside: true, gap: Self.margin, inset: Self.margin)
+            return Placement(body: body, vertical: vertical, growsTowardStart: (vertical ? spot.unit.x : spot.unit.y) == 1)
+        case .window(let id, let side, let offset):
+            guard let window = WindowServer.frames(of: [id]).first else { return resolve(.free(placement?.body.origin ?? .zero)) }
+            return onWindow(window, id: id, side: side, offset: offset)
+        }
+    }
+
+    /// Outside `side` of the window, `offset` along it and kept within it; inside, tucked, when the
+    /// window leaves no room on the screen outside that side.
+    private func onWindow(_ window: CGRect, id: CGWindowID, side: WindowSpot, offset: CGFloat) -> Placement {
+        let vertical = side.isVertical
+        let size = bodySize(vertical: vertical)
+        let screen = Geometry.visibleArea
+        let gap = style.switcherOffsetX
+
+        let (start, length, own) = vertical ? (window.minY, window.height, size.height) : (window.minX, window.width, size.width)
+        var along = start + (own > length ? (length - own) / 2 : min(max(offset, 0), length - own))
+        let (screenStart, screenEnd) = vertical ? (screen.minY, screen.maxY) : (screen.minX, screen.maxX)
+        along = max(screenStart, min(along, screenEnd - own))
+
+        let before = side == .left || side == .top
+        let (edgeMin, edgeMax, thickness) = vertical ? (window.minX, window.maxX, size.width) : (window.minY, window.maxY, size.height)
+        let (crossStart, crossEnd) = vertical ? (screen.minX, screen.maxX) : (screen.minY, screen.maxY)
+        let outside = before ? edgeMin - gap - thickness : edgeMax + gap
+        let fits = outside >= crossStart && outside + thickness <= crossEnd
+        let across = fits ? outside : before ? edgeMin + gap : edgeMax - gap - thickness
+
+        let body = vertical ? CGRect(x: across, y: along, width: size.width, height: size.height)
+                            : CGRect(x: along, y: across, width: size.width, height: size.height)
+        // Hovered appmarks grow away from the window outside it, and into it when tucked.
+        return Placement(body: body, vertical: vertical, growsTowardStart: before == fits,
+                         host: id, hostFrame: window, tucked: !fits)
+    }
+
+    /// A column on the screen's left and right, a row on its top and bottom; a corner keeps either.
+    private func isVertical(_ spot: WindowSpot) -> Bool {
+        spot.unit.x == 0.5 ? false : spot.unit.y == 0.5 ? true : model.vertical
+    }
+
+    /// The resting appmarks and their backdrop: what snaps, as opposed to the panel's room to grow.
+    private func bodySize(vertical: Bool) -> CGSize {
+        let layout = AppmarkLayout(items: model.items, style: style, vertical: vertical, growsTowardStart: false)
+        return layout.resting.insetBy(dx: -layout.backdropPadding, dy: -layout.backdropPadding).size
+    }
+
+    private func clamped(_ rect: CGRect, to area: CGRect) -> CGRect {
+        var rect = rect
+        rect.origin.x = max(area.minX, min(rect.minX, area.maxX - rect.width))
+        rect.origin.y = max(area.minY, min(rect.minY, area.maxY - rect.height))
+        return rect
+    }
+
+    private func apply(_ next: Placement, glide: Bool) {
+        if model.vertical != next.vertical { model.vertical = next.vertical }
+        if model.growsTowardStart != next.growsTowardStart { model.growsTowardStart = next.growsTowardStart }
+        if !next.tucked {
+            setCollapsed(false)
+        } else if placement?.tucked != true, drag == nil {
+            setCollapsed(true)
+        }
+        placement = next
+        layout = model.layout(style)
+        let pinned = layout.resting.insetBy(dx: -layout.backdropPadding, dy: -layout.backdropPadding)
+        let primaryHeight = NSScreen.screens[0].frame.height
+        target = NSRect(x: next.body.minX - pinned.minX, y: primaryHeight - (next.body.minY - pinned.minY) - layout.size.height,
+                        width: layout.size.width, height: layout.size.height)
+        if glide, isVisible {
+            startLink()
+        } else {
+            setFrame(target, display: true)
+        }
+        stack(above: next.host)
+    }
+
+    /// On a window, directly above it at normal level, so windows in front of it cover the appmarks too;
+    /// anywhere else, above every window and on every Space.
+    private func stack(above host: CGWindowID?) {
+        let behavior: NSWindow.CollectionBehavior = host == nil ? [.canJoinAllSpaces, .ignoresCycle, .fullScreenAuxiliary]
+                                                                : [.ignoresCycle, .fullScreenAuxiliary]
+        if collectionBehavior != behavior { collectionBehavior = behavior }
+        if let host {
+            if level != .normal { level = .normal }
+            order(.above, relativeTo: Int(host))
+        } else {
+            if level != .floating { level = .floating }
+            orderFrontRegardless()
+        }
+    }
+
+    private func setCollapsed(_ collapsed: Bool) {
+        guard model.collapsed != collapsed else { return }
+        model.collapsed = collapsed
+        if collapsed { hover.hovered = nil }
+    }
+
+    // MARK: Gliding
+
+    private func startLink() {
+        guard link == nil, isVisible else { return }
+        link = NSScreen.screens[0].displayLink(target: self, selector: #selector(tick))
+        link?.add(to: .main, forMode: .common)
+    }
+
+    @objc private func tick(_ link: CADisplayLink) {
+        if case .window(let id, _, _) = anchor {
+            guard let window = WindowServer.frames(of: [id]).first else { return relayout() }
+            if window != placement?.hostFrame {
+                apply(resolve(anchor), glide: true)
+                lastChange = Date()
+            }
+        }
+        step(seconds: link.targetTimestamp - link.timestamp)
+        if frame.origin == target.origin, Date().timeIntervalSince(lastChange) > 0.3 {
+            link.invalidate()
+            self.link = nil
+        }
+    }
+
+    private func step(seconds: Double) {
+        let pull = 1 - exp(-max(seconds, 1 / 240) / 0.035)
+        var origin = frame.origin
+        origin.x += (target.minX - origin.x) * pull
+        origin.y += (target.minY - origin.y) * pull
+        if abs(target.minX - origin.x) < 0.5, abs(target.minY - origin.y) < 0.5 { origin = target.origin }
+        setFrame(NSRect(origin: origin, size: target.size), display: true)
+    }
+
+    // MARK: Pointer
+
+    private static var pointer: CGPoint {
+        let mouse = NSEvent.mouseLocation
+        return CGPoint(x: mouse.x, y: NSScreen.screens[0].frame.height - mouse.y)
+    }
+
+    private var localPointer: CGPoint {
+        let mouse = NSEvent.mouseLocation
+        return CGPoint(x: mouse.x - frame.minX, y: frame.maxY - mouse.y)
+    }
+
+    /// As in `SwitcherPanel`: the clear room to grow belongs to the window underneath, so every move is
+    /// checked against the appmarks' outline rather than left to SwiftUI hover.
+    private func trackPointer() {
+        guard monitors.isEmpty else { return }
+        let moved = { [weak self] in MainActor.assumeIsolated { self?.pointerMoved() } }
+        monitors = [
+            NSEvent.addGlobalMonitorForEvents(matching: .mouseMoved) { _ in moved() },
+            NSEvent.addLocalMonitorForEvents(matching: .mouseMoved) { event in moved(); return event },
+        ].compactMap { $0 }
+    }
+
+    private func pointerMoved() {
+        guard drag == nil else { return }
+        let local = localPointer
+        if model.collapsed {
+            if model.line(in: layout.resting).insetBy(dx: -8, dy: -8).contains(local) { setCollapsed(false) }
+            return
+        }
+        if placement?.tucked == true,
+           !layout.backdrop(layout.frames(hovered: hover.hovered)).insetBy(dx: -16, dy: -16).contains(local) {
+            return setCollapsed(true)
+        }
+        let hovered = layout.item(at: local, hovered: hover.hovered)
+        if hovered != hover.hovered { hover.hovered = hovered }
+    }
+
+    // MARK: Dragging
+
+    /// The panel takes the mouse itself rather than leaving it to SwiftUI, so one press is either a
+    /// click on an appmark or a drag of the whole set, never both.
+    override func sendEvent(_ event: NSEvent) {
+        switch event.type {
+        case .leftMouseDown: pressed()
+        case .leftMouseDragged: dragged()
+        case .leftMouseUp: released()
+        default: super.sendEvent(event)
+        }
+    }
+
+    private func pressed() {
+        guard let placement else { return }
+        let pointer = Self.pointer, body = placement.body
+        let x = min(max((pointer.x - body.minX) / body.width, 0), 1)
+        let y = min(max((pointer.y - body.minY) / body.height, 0), 1)
+        let ids = Set(model.items.map(\.id))
+        drag = Drag(start: pointer, grab: placement.vertical ? (y, x) : (x, y),
+                    windows: snapTargets().filter { ids.contains($0.id) })
+    }
+
+    private func dragged() {
+        guard var drag else { return }
+        let pointer = Self.pointer
+        if !drag.moved {
+            guard hypot(pointer.x - drag.start.x, pointer.y - drag.start.y) > 3 else { return }
+            drag.moved = true
+            self.drag = drag
+            hover.hovered = nil
+            setCollapsed(false)
+        }
+        let next = snap(pointer, drag)
+        if let snap = next.snap, snap != anchor.snap {
+            Self.click?.stop()
+            Self.click?.play()
+            NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .now)
+        }
+        anchor = next
+        apply(resolve(anchor), glide: next.snap != nil)
+    }
+
+    private func released() {
+        guard let drag else { return }
+        self.drag = nil
+        if drag.moved { return save() }
+        if model.collapsed { return setCollapsed(false) }
+        if let id = layout.item(at: localPointer, hovered: hover.hovered) { onSelect(id) }
+    }
+
+    /// Where the pointer takes the appmarks: held on the current snap until pulled clearly off it, then
+    /// onto the nearest sticky point, the side of the frontmost window it reaches, or nowhere in particular.
+    private func snap(_ pointer: CGPoint, _ drag: Drag) -> WidgetAnchor {
+        let screen = Geometry.visibleArea
+        switch anchor {
+        case .screen(let spot):
+            if distance(from: point(of: spot, on: screen), to: freeBody(pointer, vertical: isVertical(spot), drag)) < Self.release {
+                return anchor
+            }
+        case .window(let id, let side, _):
+            if let window = drag.windows.first(where: { $0.id == id }),
+               let offset = offset(pointer, drag, along: side, of: window.frame, reach: Self.release) {
+                return .window(id, side: side, offset: offset)
+            }
+        case .free:
+            break
+        }
+        for spot in WindowSpot.allCases
+        where distance(from: point(of: spot, on: screen), to: freeBody(pointer, vertical: isVertical(spot), drag)) < Self.pointReach {
+            return .screen(spot)
+        }
+        for (index, window) in drag.windows.enumerated() {
+            for side in [WindowSpot.top, .right, .bottom, .left] {
+                guard let offset = offset(pointer, drag, along: side, of: window.frame, reach: Self.edgeReach) else { continue }
+                // Not onto the side of a window hidden behind another one.
+                let spot = onWindow(window.frame, id: window.id, side: side, offset: offset).body
+                if drag.windows[..<index].contains(where: { $0.frame.contains(CGPoint(x: spot.midX, y: spot.midY)) }) { continue }
+                return .window(window.id, side: side, offset: offset)
+            }
+        }
+        return .free(freeBody(pointer, vertical: model.vertical, drag).origin)
+    }
+
+    /// Where along `side` the appmarks would start, if the pointer has them within `reach` of it.
+    private func offset(_ pointer: CGPoint, _ drag: Drag, along side: WindowSpot, of window: CGRect, reach: CGFloat) -> CGFloat? {
+        let vertical = side.isVertical
+        let body = freeBody(pointer, vertical: vertical, drag)
+        let snapped = onWindow(window, id: 0, side: side, offset: 0).body
+        let gap = vertical ? abs(body.minX - snapped.minX) : abs(body.minY - snapped.minY)
+        let overlaps = vertical ? body.maxY > window.minY && body.minY < window.maxY
+                                : body.maxX > window.minX && body.minX < window.maxX
+        guard gap < reach, overlaps else { return nil }
+        return vertical ? body.minY - window.minY : body.minX - window.minX
+    }
+
+    /// The appmarks under the pointer, as a row or a column, held where they were grabbed.
+    private func freeBody(_ pointer: CGPoint, vertical: Bool, _ drag: Drag) -> CGRect {
+        let size = bodySize(vertical: vertical)
+        let (x, y) = vertical ? (drag.grab.across, drag.grab.along) : (drag.grab.along, drag.grab.across)
+        return CGRect(x: pointer.x - x * size.width, y: pointer.y - y * size.height, width: size.width, height: size.height)
+    }
+
+    private func point(of spot: WindowSpot, on screen: CGRect) -> CGPoint {
+        CGPoint(x: screen.minX + screen.width * spot.unit.x, y: screen.minY + screen.height * spot.unit.y)
+    }
+
+    private func distance(from point: CGPoint, to rect: CGRect) -> CGFloat {
+        hypot(max(rect.minX - point.x, 0, point.x - rect.maxX), max(rect.minY - point.y, 0, point.y - rect.maxY))
+    }
+
+    // MARK: Saving
+
+    /// A window snap can't outlive the window, so it comes back as the spot the appmarks were left at.
+    private func save() {
+        guard let placement else { return }
+        var saved: [String: Any] = ["vertical": model.vertical]
+        if case .screen(let spot) = anchor {
+            saved["spot"] = spot.rawValue
+        } else {
+            saved["x"] = placement.body.minX
+            saved["y"] = placement.body.minY
+        }
+        UserDefaults.standard.set(saved, forKey: Self.defaultsKey)
+    }
+
+    private static func restore() -> (WidgetAnchor, Bool) {
+        let saved = UserDefaults.standard.dictionary(forKey: defaultsKey)
+        let vertical = saved?["vertical"] as? Bool ?? false
+        if let raw = saved?["spot"] as? String, let spot = WindowSpot(rawValue: raw) { return (.screen(spot), vertical) }
+        if let x = saved?["x"] as? Double, let y = saved?["y"] as? Double { return (.free(CGPoint(x: x, y: y)), vertical) }
+        return (.screen(.bottom), false)
+    }
+}
+
+private struct WidgetView: View {
+    @ObservedObject var model: WidgetModel
+    @ObservedObject var hover: AppmarkHover
+    @ObservedObject var settings = Settings.shared
+
+    var body: some View {
+        let style = settings.style
+        let layout = model.layout(style)
+        let frames = layout.frames(hovered: hover.hovered)
+        let backdrop = layout.backdrop(frames)
+        let line = model.line(in: layout.resting)
+        ZStack(alignment: .topLeading) {
+            if model.collapsed {
+                Backdrop(cornerRadius: min(line.width, line.height) / 2)
+                    .overlay(Capsule().fill(.primary.opacity(0.35)))
+                    .frame(width: line.width, height: line.height)
+                    .shadow(color: .black.opacity(0.25), radius: 2)
+                    .offset(x: line.minX, y: line.minY)
+                    .transition(.opacity)
+            } else {
+                Group {
+                    if style.switcherBackground {
+                        Backdrop(cornerRadius: layout.cornerRadius + 4)
+                            .overlay(RoundedRectangle(cornerRadius: layout.cornerRadius + 4).strokeBorder(.primary.opacity(0.1)))
+                    }
+                }
+                .frame(width: backdrop.width, height: backdrop.height)
+                .offset(x: backdrop.minX, y: backdrop.minY)
+                ForEach(Array(zip(model.items, frames)), id: \.0.id) { item, frame in
+                    SwitcherChip(item: item, style: style, size: frame.size)
+                        .offset(x: frame.minX, y: frame.minY)
+                }
+            }
+        }
+        .frame(width: layout.size.width, height: layout.size.height, alignment: .topLeading)
+        .animation(.spring(response: 0.2, dampingFraction: 0.9), value: hover.hovered)
+        .animation(.snappy(duration: 0.2), value: model.collapsed)
+    }
+}

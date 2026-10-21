@@ -11,4 +11,17 @@ enum WindowServer {
         else { return [] }
         return info.compactMap { ($0[kCGWindowBounds as String] as! CFDictionary?).flatMap { CGRect(dictionaryRepresentation: $0) } }
     }
+
+    /// The on-screen frames of `ids`, front to back.
+    static func onScreen(_ ids: Set<CGWindowID>) -> [(id: CGWindowID, frame: CGRect)] {
+        guard !ids.isEmpty,
+              let info = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]]
+        else { return [] }
+        return info.compactMap { entry in
+            guard let id = entry[kCGWindowNumber as String] as? CGWindowID, ids.contains(id),
+                  let bounds = entry[kCGWindowBounds as String], let frame = CGRect(dictionaryRepresentation: bounds as! CFDictionary)
+            else { return nil }
+            return (id, frame)
+        }
+    }
 }
