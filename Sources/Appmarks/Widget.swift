@@ -117,10 +117,14 @@ final class WidgetPanel: NSPanel {
     func update(items: [SwitcherItem], focused: CGWindowID?, style: Style) {
         guard !items.isEmpty else { return orderOut(nil) }
         var moved = false
-        if case .window(let host, let side, let offset) = anchor, drag == nil, let focused, focused != host,
-           items.contains(where: { $0.id == focused }) {
-            anchor = .window(focused, side: side, offset: offset)
-            moved = true
+        if case .window(let host, let side, let offset) = anchor, drag == nil {
+            if let focused, focused != host, items.contains(where: { $0.id == focused && !$0.isMinimized }) {
+                anchor = .window(focused, side: side, offset: offset)
+                moved = true
+            } else if !items.contains(where: { $0.id == host && !$0.isMinimized }) {
+                // The window closed or minimized and no other is active: out of sight until one is.
+                return orderOut(nil)
+            }
         }
         let changed = moved || items != model.items || style != self.style || !isVisible
         if items != model.items { model.items = items }
@@ -155,10 +159,8 @@ final class WidgetPanel: NSPanel {
     // MARK: Placement
 
     private func relayout(glide: Bool = false) {
-        if case .window(let id, _, _) = anchor, WindowServer.frames(of: [id]).isEmpty {
-            // No window to sit on yet, or the last one closed: stay where they were.
-            anchor = placement.map { .free($0.body.origin, vertical: $0.vertical) } ?? .screen(.bottom)
-        }
+        // The window closed under them: hidden until the next active window, which `update` brings.
+        if case .window(let id, _, _) = anchor, WindowServer.frames(of: [id]).isEmpty { return orderOut(nil) }
         apply(resolve(anchor), glide: glide)
     }
 

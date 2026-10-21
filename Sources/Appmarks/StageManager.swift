@@ -338,9 +338,10 @@ final class StageManager {
     private func updateWidget() {
         let style = Settings.shared.style
         guard isActive, style.showSwitcher else { return widget.orderOut(nil) }
-        // While Appmarks' own Settings window is focused, keep marking the last window.
-        if NSWorkspace.shared.frontmostApplication?.processIdentifier != getpid(), let id = frontmostFocusedWindowID() {
-            recentFocus = [id]
+        // While Appmarks' own Settings window is focused, keep marking the last window; an app with no
+        // window open, or the desktop, leaves none active.
+        if NSWorkspace.shared.frontmostApplication?.processIdentifier != getpid() {
+            recentFocus = frontmostFocusedWindowID().map { [$0] } ?? []
         }
         let items = openingOrder.compactMap { windows[$0] }.filter { stage.contains($0.id) && $0.present }.map {
             SwitcherItem(id: $0.id, title: $0.title, icon: appInfo($0.pid).icon, thumbnail: $0.thumbnail,
