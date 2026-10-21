@@ -1,4 +1,5 @@
 import AppKit
+import AVFoundation
 import SwiftUI
 
 /// Where the floating appmarks rest: anywhere, on one of the screen's eight sticky points, or on a side
@@ -57,7 +58,6 @@ final class WidgetPanel: NSPanel {
     /// How far they have to be pulled off a snap to come free again.
     private static let release: CGFloat = 64
     private static let defaultsKey = "widgetAnchor"
-    private static let click = Click.sound
 
     private struct Placement {
         var body: CGRect
@@ -91,6 +91,7 @@ final class WidgetPanel: NSPanel {
     private var link: CADisplayLink?
     private var lastChange = Date.distantPast
     private var target = NSRect.zero
+    private var audioAwake = false
 
     init(onSelect: @escaping (CGWindowID) -> Void, snapTargets: @escaping () -> [(id: CGWindowID, frame: CGRect)]) {
         self.onSelect = onSelect
@@ -105,6 +106,7 @@ final class WidgetPanel: NSPanel {
         hidesOnDeactivate = false
         acceptsMouseMovedEvents = true
         contentView = FirstClickHostingView(rootView: WidgetView(model: model, hover: hover))
+        Click.prepare()
     }
 
     override var canBecomeKey: Bool { false }
@@ -144,6 +146,7 @@ final class WidgetPanel: NSPanel {
         monitors = []
         hover.hovered = nil
         drag = nil
+        keepAudioAwake(false)
         super.orderOut(sender)
     }
 
@@ -170,7 +173,10 @@ final class WidgetPanel: NSPanel {
             let body = spot.frame(bodySize(vertical: vertical), on: area(of: spot), inside: true, gap: Self.margin, inset: Self.margin)
             return Placement(body: body, vertical: vertical, growsTowardStart: (vertical ? spot.unit.x : spot.unit.y) == 1)
         case .window(let id, let side, let offset):
-            guard let window = WindowServer.frames(of: [id]).first else { return resolve(.free(placement?.body.origin ?? .zero)) }
+            // Nothing else moves during a drag, and asking the window server right after moving the panel
+            // waits out the move, about a frame, on every mouse event.
+            guard let window = drag?.windows.first(where: { $0.id == id })?.frame ?? WindowServer.frames(of: [id]).first
+            else { return resolve(.free(placement?.body.origin ?? .zero)) }
             return onWindow(window, id: id, side: side, offset: offset)
         }
     }
@@ -227,6 +233,7 @@ final class WidgetPanel: NSPanel {
     }
 
     private func apply(_ next: Placement, glide: Bool) {
+        let restack = drag == nil || next.host != placement?.host
         if model.vertical != next.vertical { model.vertical = next.vertical }
         if model.growsTowardStart != next.growsTowardStart { model.growsTowardStart = next.growsTowardStart }
         if !next.tucked {
@@ -245,7 +252,7 @@ final class WidgetPanel: NSPanel {
         } else {
             setFrame(target, display: true)
         }
-        stack(above: next.host)
+        if restack { stack(above: next.host) }
     }
 
     /// On a window, directly above it at normal level, so windows in front of it cover the appmarks too;
@@ -263,6 +270,12 @@ final class WidgetPanel: NSPanel {
         }
     }
 
+    private func keepAudioAwake(_ awake: Bool) {
+        guard awake != audioAwake else { return }
+        audioAwake = awake
+        Click.keepAwake(awake)
+    }
+
     private func setCollapsed(_ collapsed: Bool) {
         guard model.collapsed != collapsed else { return }
         model.collapsed = collapsed
@@ -278,7 +291,7 @@ final class WidgetPanel: NSPanel {
     }
 
     @objc private func tick(_ link: CADisplayLink) {
-        if case .window(let id, _, _) = anchor {
+        if case .window(let id, _, _) = anchor, drag == nil {
             guard let window = WindowServer.frames(of: [id]).first else { return relayout() }
             if window != placement?.hostFrame {
                 apply(resolve(anchor), glide: true)
@@ -327,6 +340,8 @@ final class WidgetPanel: NSPanel {
     private func pointerMoved() {
         guard drag == nil else { return }
         let local = localPointer
+        // A drag starts with the pointer over the appmarks, so that is when the audio output wakes for its click.
+        keepAudioAwake(layout.backdrop(layout.frames(hovered: hover.hovered)).insetBy(dx: -24, dy: -24).contains(local))
         if model.collapsed {
             if model.line(in: layout.resting).insetBy(dx: -8, dy: -8).contains(local) { setCollapsed(false) }
             return
@@ -369,19 +384,20 @@ final class WidgetPanel: NSPanel {
             guard hypot(pointer.x - drag.start.x, pointer.y - drag.start.y) > 3 else { return }
             drag.moved = true
             self.drag = drag
+            keepAudioAwake(true)
             hover.hovered = nil
             setCollapsed(false)
         }
         let next = snap(pointer, drag)
         if let snap = next.snap, snap != anchor.snap {
             if case .window = next {
-                Self.click?.stop()
-                Self.click?.play()
+                Click.play()
             }
             NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .now)
         }
         anchor = next
-        apply(resolve(anchor), glide: next.snap != nil)
+        // Under the pointer at once: easing after it here only reads as lag.
+        apply(resolve(anchor), glide: false)
     }
 
     private func released() {
@@ -486,8 +502,40 @@ final class WidgetPanel: NSPanel {
 }
 
 /// A short, dry tick for snapping onto a window, made here because macOS ships no plain click sound.
+/// It plays on its own queue: starting the audio output can take most of a second, which on the main
+/// thread froze the drag at the very moment of the snap.
 private enum Click {
-    static let sound: NSSound? = {
+    private static let queue = DispatchQueue(label: "Appmarks.click", qos: .userInteractive)
+    private static var player: AVAudioPlayer?
+    /// Silence on a loop, so the audio output, which sleeps when idle and takes up to half a second
+    /// to wake, is already running when the appmarks reach a window.
+    private static var silence: AVAudioPlayer?
+
+    static func prepare() {
+        queue.async {
+            player = try? AVAudioPlayer(data: wav)
+            player?.prepareToPlay()
+            silence = try? AVAudioPlayer(data: wav)
+            silence?.volume = 0
+            silence?.numberOfLoops = -1
+        }
+    }
+
+    /// Wakes the audio output while the pointer is on the appmarks or dragging them.
+    static func keepAwake(_ awake: Bool) {
+        queue.async {
+            if awake { silence?.play() } else { silence?.stop() }
+        }
+    }
+
+    static func play() {
+        queue.async {
+            player?.currentTime = 0
+            player?.play()
+        }
+    }
+
+    private static let wav: Data = {
         let rate = 44_100, count = rate * 15 / 1000
         var samples = [Int16]()
         var noise: UInt32 = 0x1234_5678
@@ -506,7 +554,7 @@ private enum Click {
         append(UInt32(rate)); append(UInt32(rate * 2)); append(UInt16(2)); append(UInt16(16))
         wav.append(contentsOf: Array("data".utf8)); append(bytes)
         samples.forEach(append)
-        return NSSound(data: wav)
+        return wav
     }()
 }
 
