@@ -349,8 +349,10 @@ final class StageManager {
         widget.update(items: items, focused: recentFocus.first, style: style)
     }
 
+    /// Only the active window: snapped, the appmarks move to whichever window is active anyway.
     private func snapTargets() -> [(id: CGWindowID, frame: CGRect)] {
-        WindowServer.onScreen(Set(stage.filter { windows[$0]?.present == true }))
+        guard let id = recentFocus.first, stage.contains(id), windows[id]?.present == true else { return [] }
+        return WindowServer.onScreen([id])
     }
 
     private func focusStageWindow(_ id: CGWindowID) {
