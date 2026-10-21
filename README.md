@@ -7,6 +7,7 @@ A personal Stage Manager: every window except the ones you're working in is park
 - **⌃⌥↓**, **⌘M** or the minimize button parks the focused window.
 - **Cmd-Tab or a Dock click** onto a parked window brings it onto the stage too.
 - **Pause** (menu bar icon) or **Quit** puts every window back where it was.
+- **Hide Desktop Files** (menu bar icon) hides the files and folders on the desktop; Finder restarts to apply it.
 
 ## Floating appmarks (experiment, the default for now)
 

@@ -3,13 +3,14 @@ import Carbon
 import Combine
 
 @MainActor
-final class AppDelegate: NSObject, NSApplicationDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let manager = StageManager()
     private lazy var interceptor = EventInterceptor(manager: manager)
     private let settingsWindow = SettingsWindow()
     private let welcomeWindow = WelcomeWindow()
     private var statusItem: NSStatusItem!
     private var toggleItem: NSMenuItem!
+    private var desktopFilesItem: NSMenuItem!
     private var permissionTimer: Timer?
     private var signalSources: [DispatchSourceSignal] = []
     private var subscriptions: Set<AnyCancellable> = []
@@ -74,6 +75,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let send = NSMenuItem(title: "Park Focused Window  ⌃⌥↓", action: #selector(sendToStrip), keyEquivalent: "")
         send.target = self
         menu.addItem(send)
+        desktopFilesItem = NSMenuItem(title: "Hide Desktop Files", action: #selector(toggleDesktopFiles), keyEquivalent: "")
+        desktopFilesItem.target = self
+        menu.addItem(desktopFilesItem)
         menu.addItem(.separator())
         let appearance = NSMenuItem(title: "Settings…", action: #selector(showAppearance), keyEquivalent: ",")
         appearance.target = self
@@ -82,7 +86,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         permissions.target = self
         menu.addItem(permissions)
         menu.addItem(NSMenuItem(title: "Quit Appmarks", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
+        menu.delegate = self
         statusItem.menu = menu
+    }
+
+    /// The setting can also change from Terminal, so the tick is read fresh each time.
+    func menuWillOpen(_ menu: NSMenu) {
+        desktopFilesItem.state = DesktopFiles.isHidden ? .on : .off
     }
 
     private func updateMenu() {
@@ -95,6 +105,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func sendToStrip() { manager.sendFocusedToStrip() }
+
+    @objc private func toggleDesktopFiles() { DesktopFiles.setHidden(!DesktopFiles.isHidden) }
 
     @objc private func showAppearance() { settingsWindow.show() }
 
