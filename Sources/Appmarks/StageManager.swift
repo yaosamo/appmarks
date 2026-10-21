@@ -478,9 +478,7 @@ final class StageManager {
         // so they are refreshed every fifth tick, and as soon as one has no thumbnail yet.
         thumbnailTick += 1
         let includeParked = thumbnailTick % 5 == 1
-        // Minimized windows have nothing to capture, so they keep the thumbnail from before.
-        let ids = Set(windows.keys.filter { windows[$0]?.minimized != true }
-            .filter { stage.contains($0) || includeParked || windows[$0]?.thumbnail == nil })
+        let ids = Set(windows.keys.filter { stage.contains($0) || includeParked || windows[$0]?.thumbnail == nil })
         Task { @MainActor in
             let images = await Thumbnails.capture(ids, width: Settings.shared.style.captureWidth)
             for (id, image) in images { windows[id]?.thumbnail = image }
