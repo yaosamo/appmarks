@@ -7,9 +7,11 @@ struct SwitcherItem: Identifiable, Equatable {
     let icon: NSImage?
     let thumbnail: NSImage?
     var isFocused = false
+    var isMinimized = false
 
     static func == (a: Self, b: Self) -> Bool {
         a.id == b.id && a.title == b.title && a.thumbnail === b.thumbnail && a.isFocused == b.isFocused
+            && a.isMinimized == b.isMinimized
     }
 }
 
@@ -325,6 +327,8 @@ struct SwitcherChip: View {
                 }
             }
             .frame(width: size.width, height: size.height)
+            // Minimized windows show their last look, dimmed.
+            .opacity(item.isMinimized ? 0.45 : 1)
             .clipShape(RoundedRectangle(cornerRadius: style.switcherCornerRadius))
             .overlay(RoundedRectangle(cornerRadius: style.switcherCornerRadius)
                 .strokeBorder(item.isFocused ? Color.accentColor : .primary.opacity(0.15), lineWidth: item.isFocused ? 2 : 0.5))

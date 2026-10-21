@@ -12,6 +12,8 @@ final class ManagedWindow {
     var thumbnail: NSImage?
     /// False while the window lives on another Space: AX only lists the current Space's windows.
     var present = true
+    /// Only tracked with parking off; parking catches minimize and sends the window to the strip instead.
+    var minimized = false
 
     init(id: CGWindowID, pid: pid_t, element: AXUIElement, title: String, size: CGSize) {
         self.id = id
@@ -342,7 +344,7 @@ final class StageManager {
         }
         let items = openingOrder.compactMap { windows[$0] }.filter { stage.contains($0.id) && $0.present }.map {
             SwitcherItem(id: $0.id, title: $0.title, icon: appInfo($0.pid).icon, thumbnail: $0.thumbnail,
-                         isFocused: $0.id == recentFocus.first)
+                         isFocused: $0.id == recentFocus.first, isMinimized: $0.minimized)
         }
         widget.update(items: items, focused: recentFocus.first, style: style)
     }
@@ -353,6 +355,7 @@ final class StageManager {
 
     private func focusStageWindow(_ id: CGWindowID) {
         guard let window = windows[id] else { return }
+        if window.minimized { window.element.setMinimized(false) }
         NSRunningApplication(processIdentifier: window.pid)?.activate()
         window.element.focus(appPID: window.pid)
         scheduleFocusCheck()
@@ -384,7 +387,8 @@ final class StageManager {
             let pid = app.processIdentifier
             if observers[pid] == nil { observe(pid) }
             for element in AXUIElementCreateApplication(pid).windows {
-                guard element.subrole == kAXStandardWindowSubrole, !element.isMinimized,
+                let minimized = element.isMinimized
+                guard element.subrole == kAXStandardWindowSubrole, !minimized || !parksWindows,
                       let id = element.windowID, let frame = element.frame,
                       frame.width >= 120, frame.height >= 80
                 else { continue }
@@ -394,6 +398,7 @@ final class StageManager {
                     watch(window)
                     window.title = element.title ?? window.title
                     window.present = true
+                    window.minimized = minimized
                     if parked.contains(id), !Geometry.isParked(frame) {
                         Log.write("unpark-by-move \(id) '\(window.title)' frame \(frame)")
                         parked.removeAll { $0 == id }
@@ -401,6 +406,7 @@ final class StageManager {
                     }
                 } else {
                     let window = ManagedWindow(id: id, pid: pid, element: element, title: element.title ?? "", size: frame.size)
+                    window.minimized = minimized
                     windows[id] = window
                     openingOrder.append(id)
                     watch(window)
@@ -469,7 +475,9 @@ final class StageManager {
         // so they are refreshed every fifth tick, and as soon as one has no thumbnail yet.
         thumbnailTick += 1
         let includeParked = thumbnailTick % 5 == 1
-        let ids = Set(windows.keys.filter { stage.contains($0) || includeParked || windows[$0]?.thumbnail == nil })
+        // Minimized windows have nothing to capture, so they keep the thumbnail from before.
+        let ids = Set(windows.keys.filter { windows[$0]?.minimized != true }
+            .filter { stage.contains($0) || includeParked || windows[$0]?.thumbnail == nil })
         Task { @MainActor in
             let images = await Thumbnails.capture(ids, width: Settings.shared.style.captureWidth)
             for (id, image) in images { windows[id]?.thumbnail = image }
@@ -529,7 +537,7 @@ final class StageManager {
 
     private func watch(_ window: ManagedWindow) {
         guard let observer = observers[window.pid], !watchedWindows.contains(window.id) else { return }
-        for name in [kAXUIElementDestroyedNotification, kAXWindowMiniaturizedNotification,
+        for name in [kAXUIElementDestroyedNotification, kAXWindowMiniaturizedNotification, kAXWindowDeminiaturizedNotification,
                      kAXMovedNotification, kAXResizedNotification] {
             AXObserverAddNotification(observer, window.element, name as CFString, Unmanaged.passUnretained(self).toOpaque())
         }
