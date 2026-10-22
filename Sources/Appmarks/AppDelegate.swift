@@ -69,6 +69,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         statusItem.button?.image = NSImage(systemSymbolName: "rectangle.leadinghalf.inset.filled", accessibilityDescription: "Appmarks")
         let menu = NSMenu()
+        let about = NSMenuItem(title: "About Appmarks", action: #selector(showAbout), keyEquivalent: "")
+        about.target = self
+        menu.addItem(about)
+        menu.addItem(.separator())
         toggleItem = NSMenuItem(title: "Pause", action: #selector(toggle), keyEquivalent: "")
         toggleItem.target = self
         menu.addItem(toggleItem)
@@ -111,4 +115,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc private func showAppearance() { settingsWindow.show() }
 
     @objc private func showWelcome() { welcomeWindow.show() }
+
+    /// The standard panel, which takes the icon, name and version from the bundle. A menu bar app is
+    /// never frontmost on its own, so without activating first it would open behind the current app.
+    @objc private func showAbout() {
+        NSApp.activate()
+        NSApp.orderFrontStandardAboutPanel(options: [.credits: Self.aboutCredits])
+    }
+
+    private static var aboutCredits: NSAttributedString {
+        let centered = NSMutableParagraphStyle()
+        centered.alignment = .center
+        let font = NSFont.systemFont(ofSize: NSFont.smallSystemFontSize)
+        let credits = NSMutableAttributedString(
+            string: "A better way to switch windows on your Mac, and it's free.\n",
+            attributes: [.font: font, .foregroundColor: NSColor.secondaryLabelColor, .paragraphStyle: centered])
+        credits.append(NSAttributedString(
+            string: "appmarks.yaosamo.com",
+            attributes: [.font: font, .link: URL(string: "https://appmarks.yaosamo.com")!, .paragraphStyle: centered]))
+        return credits
+    }
 }
