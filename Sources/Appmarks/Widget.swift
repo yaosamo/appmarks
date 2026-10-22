@@ -94,6 +94,7 @@ final class WidgetPanel: NSPanel {
     private var lastChange = Date.distantPast
     private var target = NSRect.zero
     private var audioAwake = false
+    private var missionControlWait: Timer?
 
     init(onSelect: @escaping (CGWindowID) -> Void, snapTargets: @escaping () -> [(id: CGWindowID, frame: CGRect)]) {
         self.onSelect = onSelect
@@ -148,6 +149,8 @@ final class WidgetPanel: NSPanel {
     override func orderOut(_ sender: Any?) {
         link?.invalidate()
         link = nil
+        missionControlWait?.invalidate()
+        missionControlWait = nil
         monitors.forEach(NSEvent.removeMonitor)
         monitors = []
         hover.hovered = nil
@@ -161,7 +164,25 @@ final class WidgetPanel: NSPanel {
     private func relayout(glide: Bool = false) {
         // The window closed under them: hidden until the next active window, which `update` brings.
         if case .window(let id, _, _) = anchor, WindowServer.frames(of: [id]).isEmpty { return orderOut(nil) }
+        if case .window = anchor, WindowServer.isMissionControlOpen { return waitOutMissionControl() }
         apply(resolve(anchor), glide: glide)
+    }
+
+    /// Mission Control has the windows as tiles, which snapped appmarks would land beside and stay by.
+    /// Out of sight until it closes, then onto the window it left active, gliding as it zooms back in.
+    private func waitOutMissionControl() {
+        orderOut(nil)
+        missionControlWait = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self, !WindowServer.isMissionControlOpen else { return }
+                self.missionControlWait?.invalidate()
+                self.missionControlWait = nil
+                self.relayout()
+                guard self.isVisible else { return }
+                self.follow()
+                self.trackPointer()
+            }
+        }
     }
 
     private func resolve(_ anchor: WidgetAnchor) -> Placement {
@@ -260,10 +281,10 @@ final class WidgetPanel: NSPanel {
     }
 
     /// On a window, directly above it at normal level, so windows in front of it cover the appmarks too;
-    /// anywhere else, above every window and on every Space.
+    /// anywhere else, above every window and on every Space. Never a tile of its own in Mission Control.
     private func stack(above host: CGWindowID?) {
-        let behavior: NSWindow.CollectionBehavior = host == nil ? [.canJoinAllSpaces, .ignoresCycle, .fullScreenAuxiliary]
-                                                                : [.ignoresCycle, .fullScreenAuxiliary]
+        let behavior: NSWindow.CollectionBehavior = host == nil ? [.canJoinAllSpaces, .transient, .ignoresCycle, .fullScreenAuxiliary]
+                                                                : [.transient, .ignoresCycle, .fullScreenAuxiliary]
         if collectionBehavior != behavior { collectionBehavior = behavior }
         if let host {
             if level != .normal { level = .normal }
@@ -298,6 +319,9 @@ final class WidgetPanel: NSPanel {
         if case .window(let id, _, _) = anchor, drag == nil {
             guard let window = WindowServer.frames(of: [id]).first else { return relayout() }
             if window != placement?.hostFrame {
+                // Mission Control shrinks the window into a tile; a plain move keeps its size, so only
+                // a size change pays for the check.
+                if window.size != placement?.hostFrame?.size, WindowServer.isMissionControlOpen { return waitOutMissionControl() }
                 apply(resolve(anchor), glide: true)
                 lastChange = Date()
             }

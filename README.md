@@ -15,7 +15,7 @@ With **Park windows on the side** off in Settings, windows stay where they are a
 
 - **Click** an appmark to focus its window; **drag** anywhere else to move the panel.
 - It sticks, with a click, to the middle of each screen edge (above the Dock at the bottom) and to each corner, and drags freely anywhere else. Near the left or right display edge it turns into a column, near the top or bottom into a row.
-- Dragged near a side of the active window it clicks onto it and slides along that side; from then on it sits on that side of whichever window is active, and hides while no window is. With no room outside the window, it tucks inside as a thin line that opens on hover.
+- Dragged near a side of the active window it clicks onto it and slides along that side; from then on it sits on that side of whichever window is active, one picked in Mission Control included, and hides while no window is or while Mission Control is open. With no room outside the window, it tucks inside as a thin line that opens on hover.
 
 ## Settings
 
