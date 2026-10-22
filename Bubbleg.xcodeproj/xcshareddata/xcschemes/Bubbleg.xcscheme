@@ -15,10 +15,10 @@
             buildForAnalyzing = "YES">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "9933F50FEBBCA06E3EC452C8"
-               BuildableName = "Appmarks.app"
-               BlueprintName = "Appmarks"
-               ReferencedContainer = "container:Appmarks.xcodeproj">
+               BlueprintIdentifier = "0FE21B42C3AAEFCE8CCB4D1A"
+               BuildableName = "Bubbleg.app"
+               BlueprintName = "Bubbleg"
+               ReferencedContainer = "container:Bubbleg.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
       </BuildActionEntries>
@@ -32,10 +32,10 @@
       <MacroExpansion>
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "9933F50FEBBCA06E3EC452C8"
-            BuildableName = "Appmarks.app"
-            BlueprintName = "Appmarks"
-            ReferencedContainer = "container:Appmarks.xcodeproj">
+            BlueprintIdentifier = "0FE21B42C3AAEFCE8CCB4D1A"
+            BuildableName = "Bubbleg.app"
+            BlueprintName = "Bubbleg"
+            ReferencedContainer = "container:Bubbleg.xcodeproj">
          </BuildableReference>
       </MacroExpansion>
       <Testables>
@@ -55,10 +55,10 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "9933F50FEBBCA06E3EC452C8"
-            BuildableName = "Appmarks.app"
-            BlueprintName = "Appmarks"
-            ReferencedContainer = "container:Appmarks.xcodeproj">
+            BlueprintIdentifier = "0FE21B42C3AAEFCE8CCB4D1A"
+            BuildableName = "Bubbleg.app"
+            BlueprintName = "Bubbleg"
+            ReferencedContainer = "container:Bubbleg.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
       <CommandLineArguments>
@@ -74,10 +74,10 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "9933F50FEBBCA06E3EC452C8"
-            BuildableName = "Appmarks.app"
-            BlueprintName = "Appmarks"
-            ReferencedContainer = "container:Appmarks.xcodeproj">
+            BlueprintIdentifier = "0FE21B42C3AAEFCE8CCB4D1A"
+            BuildableName = "Bubbleg.app"
+            BlueprintName = "Bubbleg"
+            ReferencedContainer = "container:Bubbleg.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </ProfileAction>

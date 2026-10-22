@@ -2,10 +2,10 @@ import AppKit
 import AVFoundation
 import SwiftUI
 
-/// Where the floating appmarks rest: anywhere, on one of the screen's eight sticky points, or on a side
+/// Where the floating bubbles rest: anywhere, on one of the screen's eight sticky points, or on a side
 /// of a window, which they then follow around.
 enum WidgetAnchor: Equatable {
-    /// The appmarks' top-left, in Accessibility coordinates, as a column or a row.
+    /// The bubbles' top-left, in Accessibility coordinates, as a column or a row.
     case free(CGPoint, vertical: Bool)
     case screen(WindowSpot)
     /// On `side` (`.top`, `.right`, `.bottom` or `.left`) of the active window, moving to each window
@@ -64,14 +64,14 @@ final class WidgetModel: ObservableObject {
     @Published var items: [SwitcherItem] = []
     @Published var vertical = false
     @Published var growsTowardStart = false
-    /// Tucked inside a window with no room outside it, the appmarks fold into a line until hovered.
+    /// Tucked inside a window with no room outside it, the bubbles fold into a line until hovered.
     @Published var collapsed = false
 
-    func layout(_ style: Style) -> AppmarkLayout {
-        AppmarkLayout(items: items, style: style, vertical: vertical, growsTowardStart: growsTowardStart)
+    func layout(_ style: Style) -> BubbleLayout {
+        BubbleLayout(items: items, style: style, vertical: vertical, growsTowardStart: growsTowardStart)
     }
 
-    /// The folded line, centred on the appmarks and against the window edge they are tucked inside.
+    /// The folded line, centred on the bubbles and against the window edge they are tucked inside.
     func line(in resting: CGRect) -> CGRect {
         let thickness: CGFloat = 6
         if vertical {
@@ -85,14 +85,14 @@ final class WidgetModel: ObservableObject {
     }
 }
 
-/// Every open window as an appmark in one panel that floats on screen. Drag it anywhere; near a screen
+/// Every open window as a bubble in one panel that floats on screen. Drag it anywhere; near a screen
 /// edge's middle or a corner it sticks there, and near a window's side it clicks onto it, slides along
 /// it and follows the window around.
 final class WidgetPanel: NSPanel {
     private static let margin: CGFloat = 8
-    /// How close the appmarks have to come to a sticky point, and to a window's side, to snap.
+    /// How close the bubbles have to come to a sticky point, and to a window's side, to snap.
     private static let pointReach: CGFloat = 40
-    /// How close the pointer has to come to a display edge for the appmarks to turn along it.
+    /// How close the pointer has to come to a display edge for the bubbles to turn along it.
     private static let turnReach: CGFloat = 120
     private static let edgeReach: CGFloat = 24
     /// How far they have to be pulled off a snap to come free again.
@@ -110,20 +110,20 @@ final class WidgetPanel: NSPanel {
 
     private struct Drag {
         let start: CGPoint
-        /// Where on the appmarks they were grabbed, as fractions along and across the stack, so the
+        /// Where on the bubbles they were grabbed, as fractions along and across the stack, so the
         /// grab point stays under the pointer when a snap turns a row into a column.
         let grab: (along: CGFloat, across: CGFloat)
-        /// Snap targets, front to back; nothing else moves while the appmarks are dragged.
+        /// Snap targets, front to back; nothing else moves while the bubbles are dragged.
         let windows: [(id: CGWindowID, frame: CGRect)]
         var moved = false
     }
 
     private let model = WidgetModel()
-    private let hover = AppmarkHover()
+    private let hover = BubbleHover()
     private let onSelect: (CGWindowID) -> Void
     private let snapTargets: () -> [(id: CGWindowID, frame: CGRect)]
     private var style = Style()
-    private var layout = AppmarkLayout(items: [], style: Style(), vertical: false, growsTowardStart: false)
+    private var layout = BubbleLayout(items: [], style: Style(), vertical: false, growsTowardStart: false)
     private var anchor: WidgetAnchor
     private var placement: Placement?
     private var drag: Drag?
@@ -171,7 +171,7 @@ final class WidgetPanel: NSPanel {
         if changed {
             relayout()
         } else {
-            // Focusing the host window raises it over the appmarks.
+            // Focusing the host window raises it over the bubbles.
             stack(above: placement?.host)
         }
         trackPointer()
@@ -179,7 +179,7 @@ final class WidgetPanel: NSPanel {
 
     /// The host window moved or resized. Apps report moves at their own pace, often 10–20 times a
     /// second or only on release, while the window server has the real frame every refresh; follow that
-    /// until the window is still for 300ms and the appmarks have caught up.
+    /// until the window is still for 300ms and the bubbles have caught up.
     func follow() {
         guard case .window = anchor else { return }
         lastChange = Date()
@@ -208,7 +208,7 @@ final class WidgetPanel: NSPanel {
         apply(resolve(anchor), glide: glide)
     }
 
-    /// Mission Control has the windows as tiles, which snapped appmarks would land beside and stay by.
+    /// Mission Control has the windows as tiles, which snapped bubbles would land beside and stay by.
     /// Out of sight until it closes, then onto the window it left active, gliding as it zooms back in.
     private func waitOutMissionControl() {
         orderOut(nil)
@@ -230,7 +230,7 @@ final class WidgetPanel: NSPanel {
         case .free(let origin, let vertical):
             let screen = Geometry.belowMenuBar
             let body = clamped(CGRect(origin: origin, size: bodySize(vertical: vertical)), to: screen)
-            // Hovered appmarks grow toward the middle of the screen.
+            // Hovered bubbles grow toward the middle of the screen.
             return Placement(body: body, vertical: vertical,
                              growsTowardStart: vertical ? body.midX > screen.midX : body.midY > screen.midY)
         case .screen(let spot):
@@ -268,7 +268,7 @@ final class WidgetPanel: NSPanel {
 
         let body = vertical ? CGRect(x: across, y: along, width: size.width, height: size.height)
                             : CGRect(x: along, y: across, width: size.width, height: size.height)
-        // Hovered appmarks grow away from the window outside it, and into it when tucked.
+        // Hovered bubbles grow away from the window outside it, and into it when tucked.
         return Placement(body: body, vertical: vertical, growsTowardStart: before == fits,
                          host: id, hostFrame: window, tucked: !fits)
     }
@@ -284,9 +284,9 @@ final class WidgetPanel: NSPanel {
         spot.unit.x == 0.5 ? false : spot.unit.y == 0.5 ? true : model.vertical
     }
 
-    /// The resting appmarks and their backdrop: what snaps, as opposed to the panel's room to grow.
+    /// The resting bubbles and their backdrop: what snaps, as opposed to the panel's room to grow.
     private func bodySize(vertical: Bool) -> CGSize {
-        let layout = AppmarkLayout(items: model.items, style: style, vertical: vertical, growsTowardStart: false)
+        let layout = BubbleLayout(items: model.items, style: style, vertical: vertical, growsTowardStart: false)
         return layout.resting.insetBy(dx: -layout.backdropPadding, dy: -layout.backdropPadding).size
     }
 
@@ -320,7 +320,7 @@ final class WidgetPanel: NSPanel {
         if restack { stack(above: next.host) }
     }
 
-    /// On a window, directly above it at normal level, so windows in front of it cover the appmarks too;
+    /// On a window, directly above it at normal level, so windows in front of it cover the bubbles too;
     /// anywhere else, above every window and on every Space. Never a tile of its own in Mission Control.
     private func stack(above host: CGWindowID?) {
         let behavior: NSWindow.CollectionBehavior = host == nil ? [.canJoinAllSpaces, .transient, .ignoresCycle, .fullScreenAuxiliary]
@@ -395,7 +395,7 @@ final class WidgetPanel: NSPanel {
     }
 
     /// Most of the panel is clear room to grow, and the pointer over a clear pixel belongs to the window
-    /// underneath, so SwiftUI hover would miss it leaving. Every move is checked against the appmarks'
+    /// underneath, so SwiftUI hover would miss it leaving. Every move is checked against the bubbles'
     /// outline instead.
     private func trackPointer() {
         guard monitors.isEmpty else { return }
@@ -409,7 +409,7 @@ final class WidgetPanel: NSPanel {
     private func pointerMoved() {
         guard drag == nil else { return }
         let local = localPointer
-        // A drag starts with the pointer over the appmarks, so that is when the audio output wakes for its click.
+        // A drag starts with the pointer over the bubbles, so that is when the audio output wakes for its click.
         keepAudioAwake(layout.backdrop(layout.frames(hovered: hover.hovered)).insetBy(dx: -24, dy: -24).contains(local))
         if model.collapsed {
             if model.line(in: layout.resting).insetBy(dx: -8, dy: -8).contains(local) { setCollapsed(false) }
@@ -426,7 +426,7 @@ final class WidgetPanel: NSPanel {
     // MARK: Dragging
 
     /// The panel takes the mouse itself rather than leaving it to SwiftUI, so one press is either a
-    /// click on an appmark or a drag of the whole set, never both.
+    /// click on a bubble or a drag of the whole set, never both.
     override func sendEvent(_ event: NSEvent) {
         switch event.type {
         case .leftMouseDown: pressed()
@@ -475,7 +475,7 @@ final class WidgetPanel: NSPanel {
         if let id = layout.item(at: localPointer, hovered: hover.hovered) { onSelect(id) }
     }
 
-    /// Where the pointer takes the appmarks: held on the current snap until pulled clearly off it, then
+    /// Where the pointer takes the bubbles: held on the current snap until pulled clearly off it, then
     /// onto the nearest sticky point, the side of the frontmost window it reaches, or nowhere in particular.
     private func snap(_ pointer: CGPoint, _ drag: Drag) -> WidgetAnchor {
         switch anchor {
@@ -508,7 +508,7 @@ final class WidgetPanel: NSPanel {
         return .free(freeBody(pointer, vertical: vertical, drag).origin, vertical: vertical)
     }
 
-    /// With the pointer near a display edge, the appmarks turn to lie along it: a column by the left and
+    /// With the pointer near a display edge, the bubbles turn to lie along it: a column by the left and
     /// right edges, a row by the top and bottom. Nil away from every edge, where they keep their shape.
     private func facing(_ pointer: CGPoint) -> Bool? {
         let screen = Geometry.belowMenuBar
@@ -519,7 +519,7 @@ final class WidgetPanel: NSPanel {
         return model.vertical ? side < end + 24 : side + 24 < end
     }
 
-    /// Where along `side` the appmarks would start, if the pointer has them within `reach` of it.
+    /// Where along `side` the bubbles would start, if the pointer has them within `reach` of it.
     private func offset(_ pointer: CGPoint, _ drag: Drag, along side: WindowSpot, of window: CGRect, reach: CGFloat) -> CGFloat? {
         let vertical = side.isVertical
         let body = freeBody(pointer, vertical: vertical, drag)
@@ -533,7 +533,7 @@ final class WidgetPanel: NSPanel {
         return room > 0 ? min(max(start / room, 0), 1) : 0.5
     }
 
-    /// The appmarks under the pointer, as a row or a column, held where they were grabbed.
+    /// The bubbles under the pointer, as a row or a column, held where they were grabbed.
     private func freeBody(_ pointer: CGPoint, vertical: Bool, _ drag: Drag) -> CGRect {
         let size = bodySize(vertical: vertical)
         let (x, y) = vertical ? (drag.grab.across, drag.grab.along) : (drag.grab.along, drag.grab.across)
@@ -584,10 +584,10 @@ final class WidgetPanel: NSPanel {
 /// starting the audio output can take most of a second, which on the main thread froze the drag at
 /// the very moment of the snap.
 private enum Click {
-    private static let queue = DispatchQueue(label: "Appmarks.click", qos: .userInteractive)
+    private static let queue = DispatchQueue(label: "Bubbleg.click", qos: .userInteractive)
     private static var player: AVAudioPlayer?
     /// The click on a silent loop, so the audio output, which sleeps when idle and takes up to half a
-    /// second to wake, is already running when the appmarks snap.
+    /// second to wake, is already running when the bubbles snap.
     private static var silence: AVAudioPlayer?
 
     static func prepare() {
@@ -603,7 +603,7 @@ private enum Click {
         }
     }
 
-    /// Wakes the audio output while the pointer is on the appmarks or dragging them.
+    /// Wakes the audio output while the pointer is on the bubbles or dragging them.
     static func keepAwake(_ awake: Bool) {
         queue.async {
             if awake { silence?.play() } else { silence?.stop() }
@@ -620,7 +620,7 @@ private enum Click {
 
 private struct WidgetView: View {
     @ObservedObject var model: WidgetModel
-    @ObservedObject var hover: AppmarkHover
+    @ObservedObject var hover: BubbleHover
     @ObservedObject var settings = Settings.shared
 
     var body: some View {

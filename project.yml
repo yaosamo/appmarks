@@ -1,7 +1,7 @@
-# XcodeGen spec for Appmarks.xcodeproj, the project for archiving and distributing the app.
+# XcodeGen spec for Bubbleg.xcodeproj, the project for archiving and distributing the app.
 # After adding or removing files, regenerate it: `xcodegen` in this folder.
 # Package.swift and build.sh stay for quick command-line builds of the same sources.
-name: Appmarks
+name: Bubbleg
 options:
   bundleIdPrefix: com.yaric
   deploymentTarget:
@@ -13,31 +13,31 @@ settings:
     SWIFT_VERSION: "5.0"
     SWIFT_STRICT_CONCURRENCY: minimal
 targets:
-  Appmarks:
+  Bubbleg:
     type: application
     platform: macOS
     sources:
-      - path: Sources/Appmarks
+      - path: Sources/Bubbleg
       - path: Resources
         buildPhase: resources
     settings:
       base:
-        PRODUCT_NAME: Appmarks
-        PRODUCT_BUNDLE_IDENTIFIER: com.yaric.appmarks
+        PRODUCT_NAME: Bubbleg
+        PRODUCT_BUNDLE_IDENTIFIER: com.yaric.bubbleg
         # Info.plist carries the version (CFBundleShortVersionString, CFBundleVersion).
         INFOPLIST_FILE: Info.plist
         GENERATE_INFOPLIST_FILE: NO
         # Not sandboxed: moving and reading other apps' windows through Accessibility isn't
-        # allowed in the sandbox, so Appmarks ships with Developer ID, outside the App Store.
+        # allowed in the sandbox, so Bubbleg ships with Developer ID, outside the App Store.
         ENABLE_APP_SANDBOX: NO
         # Notarization requires the hardened runtime.
         ENABLE_HARDENED_RUNTIME: YES
         COMBINE_HIDPI_IMAGES: YES
 schemes:
-  Appmarks:
+  Bubbleg:
     build:
       targets:
-        Appmarks: all
+        Bubbleg: all
     run:
       config: Debug
     archive:

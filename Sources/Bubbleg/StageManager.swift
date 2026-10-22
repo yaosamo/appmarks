@@ -20,7 +20,7 @@ final class ManagedWindow {
     }
 }
 
-/// Keeps track of every open window and shows them all as one floating set of appmarks.
+/// Keeps track of every open window and shows them all as one floating set of bubbles.
 @MainActor
 final class StageManager {
     private(set) var isActive = false
@@ -33,9 +33,9 @@ final class StageManager {
     private var thumbnailTimer: Timer?
     private var appInfoCache: [pid_t: (name: String, icon: NSImage?)] = [:]
     private var subscriptions: Set<AnyCancellable> = []
-    /// The active window, which the appmarks ring and snap onto.
+    /// The active window, which the bubbles ring and snap onto.
     private var focused: CGWindowID?
-    /// Windows in the order Appmarks first saw them, which is the appmarks' fixed order.
+    /// Windows in the order Bubbleg first saw them, which is the bubbles' fixed order.
     private var openingOrder: [CGWindowID] = []
     private lazy var widget = WidgetPanel(onSelect: { [weak self] id in self?.focus(id) },
                                           snapTargets: { [weak self] in self?.snapTargets() ?? [] })
@@ -89,7 +89,7 @@ final class StageManager {
     }
 
     // Focus settles a moment after an app activates, and a closing or minimising window's own
-    // notification lands first, so the appmarks look again shortly after.
+    // notification lands first, so the bubbles look again shortly after.
     private func scheduleUpdate() {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in
             MainActor.assumeIsolated { self?.updateWidget() }
@@ -100,7 +100,7 @@ final class StageManager {
     private func updateWidget() {
         let style = Settings.shared.style
         guard isActive, style.showSwitcher else { return widget.orderOut(nil) }
-        // While Appmarks' own Settings window is focused, keep marking the last window; an app with no
+        // While Bubbleg's own Settings window is focused, keep marking the last window; an app with no
         // window open, or the desktop, leaves none active.
         if NSWorkspace.shared.frontmostApplication?.processIdentifier != getpid() {
             focused = frontmostFocusedWindowID()
@@ -112,7 +112,7 @@ final class StageManager {
         widget.update(items: items, focused: focused, style: style)
     }
 
-    /// Only the active window: snapped, the appmarks move to whichever window is active anyway.
+    /// Only the active window: snapped, the bubbles move to whichever window is active anyway.
     private func snapTargets() -> [(id: CGWindowID, frame: CGRect)] {
         guard let focused, windows[focused]?.present == true else { return [] }
         return WindowServer.onScreen([focused])

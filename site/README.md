@@ -1,4 +1,4 @@
-# Appmarks site
+# Bubbleg site
 
 The one-page website, served by Vercel with this folder as the project root.
 

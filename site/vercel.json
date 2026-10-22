@@ -2,7 +2,7 @@
   "redirects": [
     {
       "source": "/download",
-      "destination": "https://github.com/yaosamo/appmarks/releases/latest/download/Appmarks.zip",
+      "destination": "https://github.com/yaosamo/appmarks/releases/latest/download/Bubbleg.zip",
       "permanent": false
     }
   ]
