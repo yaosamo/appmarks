@@ -21,4 +21,6 @@ The one-page website, served by Vercel with this folder as the project root.
 
   The +14 dB suits a quiet recording (about -31 LUFS); check a new one with `ffmpeg -i qt.mov -af loudnorm=print_format=summary -f null -` and aim for roughly -16 LUFS.
 
-- **Icon:** `site/icon.svg` is a placeholder; replace it with the real app icon.
+  The current demo joins three recordings, each converted with `avconvert` first and given its own gain (+16, +18 and +20 dB) to even out their levels, with the Finder sidebar's "Credentiable" row blurred wherever it shows.
+
+- **Icon:** `icon.png` (256px, transparent; page icon and favicon) and `apple-touch-icon.png` (180px, opaque, since iOS fills transparency with black), cut from the same artwork as the app's `Resources/AppIcon.icns`.
