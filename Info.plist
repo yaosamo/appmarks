@@ -8,6 +8,8 @@
     <string>Appmarks</string>
     <key>CFBundleDisplayName</key>
     <string>Appmarks</string>
+    <key>CFBundleIconFile</key>
+    <string>AppIcon</string>
     <key>CFBundleExecutable</key>
     <string>Appmarks</string>
     <key>CFBundlePackageType</key>
