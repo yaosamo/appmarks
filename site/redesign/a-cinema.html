@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Appmarks</title>
+  <meta name="description" content="A personal Stage Manager for your Mac." />
+  <link rel="icon" href="../icon.svg" type="image/svg+xml" />
+  <style>
+    /* Option A — Cinema: the video edge to edge on black, one slim bar underneath. */
+    :root {
+      --ground: #000;
+      --ink: #F4F5F7;
+      --quiet: rgba(244, 245, 247, 0.55);
+      --line: rgba(255, 255, 255, 0.1);
+      --mark: #F2B33D;
+      color-scheme: dark;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; }
+    body {
+      background: var(--ground);
+      color: var(--ink);
+      font: 15px/1.4 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", "Segoe UI", Roboto, sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .page {
+      display: flex;
+      flex-direction: column;
+      height: 100svh;
+    }
+
+    .stage {
+      position: relative;
+      flex: 1;
+      min-height: 0;
+      container-type: size;
+      display: grid;
+      place-items: center;
+    }
+    .screen {
+      position: relative;
+      width: min(100cqw, calc(100cqh * 16 / 9));
+      aspect-ratio: 16 / 9;
+      background: #0a0a0a;
+    }
+    .screen video {
+      display: block;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .bar {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 14px clamp(16px, 3vw, 32px);
+      border-top: 1px solid var(--line);
+    }
+    .bar img { width: 34px; height: 34px; flex: none; }
+    .name { display: flex; flex-direction: column; min-width: 0; }
+    .name strong { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; }
+    .name span { color: var(--quiet); font-size: 13px; }
+    .spacer { flex: 1; }
+    .fine { color: var(--quiet); font-size: 13px; margin: 0; }
+
+    .get {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 16px 10px 13px;
+      border-radius: 999px;
+      background: #fff;
+      color: #000;
+      font-weight: 600;
+      text-decoration: none;
+      white-space: nowrap;
+    }
+    .get svg { width: 17px; height: 17px; }
+    .get:hover { background: #E6E8EC; }
+    a:focus-visible, button:focus-visible { outline: 2px solid var(--mark); outline-offset: 3px; }
+
+    .sound {
+      position: absolute;
+      right: 16px;
+      top: 16px;
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 7px 12px 7px 10px;
+      border: 0;
+      border-radius: 999px;
+      background: rgba(0, 0, 0, 0.55);
+      -webkit-backdrop-filter: blur(12px);
+      backdrop-filter: blur(12px);
+      color: #fff;
+      font-size: 13px;
+      font-weight: 500;
+      line-height: 1;
+      font-family: inherit;
+      cursor: pointer;
+    }
+    .sound svg { width: 16px; height: 16px; }
+    .screen.muted video { cursor: pointer; }
+    .screen:not(.muted) .sound { display: none; }
+
+    @media (max-width: 700px) {
+      .page { height: auto; }
+      .stage { flex: none; container-type: normal; }
+      .screen { width: 100%; }
+      .bar { flex-wrap: wrap; padding: 20px 16px 32px; border-top: 0; }
+      .spacer { display: none; }
+      .actions { width: 100%; display: flex; align-items: center; gap: 12px; margin-top: 8px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <section class="stage" aria-label="Demo">
+      <div class="screen muted" id="screen">
+        <video id="demo" autoplay muted loop playsinline preload="auto" poster="../demo-poster.jpg" aria-label="Appmarks parking and bringing back windows">
+          <source src="../demo-av1.mp4" type='video/mp4; codecs="av01.0.09M.10"' />
+          <source src="../demo.mp4" type="video/mp4" />
+        </video>
+        <button class="sound" id="sound" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H2v6h4l5 4z"/><path d="m22 9-6 6"/><path d="m16 9 6 6"/></svg>
+          Sound
+        </button>
+      </div>
+    </section>
+
+    <footer class="bar">
+      <img src="../icon.svg" alt="" width="34" height="34" />
+      <div class="name">
+        <strong>Appmarks</strong>
+        <span>A personal Stage Manager for your Mac.</span>
+      </div>
+      <div class="spacer"></div>
+      <div class="actions">
+        <a class="get" href="/download">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v12"/><path d="m6 11 6 6 6-6"/><path d="M5 20h14"/></svg>
+          Download for Mac
+        </a>
+        <p class="fine">Free · macOS 14+</p>
+      </div>
+    </footer>
+  </main>
+  <script>
+    // A click on the muted video (or the hint) turns sound on and hands over to the native controls.
+    const screen = document.getElementById("screen");
+    const demo = document.getElementById("demo");
+    function listen(event) {
+      if (!screen.classList.contains("muted")) return;
+      event.preventDefault();
+      screen.classList.remove("muted");
+      demo.muted = false;
+      demo.controls = true;
+      demo.play();
+    }
+    demo.addEventListener("click", listen);
+    document.getElementById("sound").addEventListener("click", listen);
+  </script>
+</body>
+</html>
