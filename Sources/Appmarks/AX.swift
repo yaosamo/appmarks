@@ -23,30 +23,6 @@ extension AXUIElement {
     var windows: [AXUIElement] { copy(kAXWindowsAttribute) as? [AXUIElement] ?? [] }
     var title: String? { copy(kAXTitleAttribute) as? String }
     var subrole: String? { copy(kAXSubroleAttribute) as? String }
-    var isEnabled: Bool { copy(kAXEnabledAttribute) as? Bool ?? false }
-
-    private var children: [AXUIElement] { copy(kAXChildrenAttribute) as? [AXUIElement] ?? [] }
-
-    /// The app's ⌘M item when it is Minimize. Matched on title or AppKit's selector, because the
-    /// identifier differs per app (`performMiniaturize:`, `_NS:316`, `Minimize`) and some apps bind ⌘M elsewhere.
-    var minimizeMenuItem: AXUIElement? {
-        guard let bar = copy(kAXMenuBarAttribute), CFGetTypeID(bar) == AXUIElementGetTypeID() else { return nil }
-        for menu in (bar as! AXUIElement).children.reversed() {
-            for list in menu.children {
-                for item in list.children where item.copy(kAXMenuItemCmdCharAttribute) as? String == "M"
-                    && item.copy(kAXMenuItemCmdModifiersAttribute) as? Int == 0
-                    && (item.title == "Minimize" || item.copy(kAXIdentifierAttribute) as? String == "performMiniaturize:") {
-                    return item
-                }
-            }
-        }
-        return nil
-    }
-
-    var window: AXUIElement? {
-        guard let value = copy(kAXWindowAttribute), CFGetTypeID(value) == AXUIElementGetTypeID() else { return nil }
-        return (value as! AXUIElement)
-    }
     var isMinimized: Bool { copy(kAXMinimizedAttribute) as? Bool ?? false }
 
     var focusedWindow: AXUIElement? {
@@ -61,16 +37,6 @@ extension AXUIElement {
         AXValueGetValue(p as! AXValue, .cgPoint, &origin)
         AXValueGetValue(s as! AXValue, .cgSize, &size)
         return CGRect(origin: origin, size: size)
-    }
-
-    func setPosition(_ point: CGPoint) {
-        var point = point
-        if let value = AXValueCreate(.cgPoint, &point) { set(kAXPositionAttribute, value) }
-    }
-
-    func setSize(_ size: CGSize) {
-        var size = size
-        if let value = AXValueCreate(.cgSize, &size) { set(kAXSizeAttribute, value) }
     }
 
     func setMinimized(_ minimized: Bool) {

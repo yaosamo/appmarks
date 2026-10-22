@@ -7,69 +7,47 @@ final class ManagedWindow {
     let pid: pid_t
     var element: AXUIElement
     var title: String
-    var size: CGSize
-    var savedOrigin: CGPoint?
     var thumbnail: NSImage?
     /// False while the window lives on another Space: AX only lists the current Space's windows.
     var present = true
-    /// Only tracked with parking off; parking catches minimize and sends the window to the strip instead.
     var minimized = false
 
-    init(id: CGWindowID, pid: pid_t, element: AXUIElement, title: String, size: CGSize) {
+    init(id: CGWindowID, pid: pid_t, element: AXUIElement, title: String) {
         self.id = id
         self.pid = pid
         self.element = element
         self.title = title
-        self.size = size
     }
 }
 
+/// Keeps track of every open window and shows them all as one floating set of appmarks.
 @MainActor
 final class StageManager {
-    let strip = StripModel()
     private(set) var isActive = false
 
     private var windows: [CGWindowID: ManagedWindow] = [:]
-    private var stage: Set<CGWindowID> = []
-    private var parked: [CGWindowID] = []
     private var observers: [pid_t: AXObserver] = [:]
     private var watchedWindows: Set<CGWindowID> = []
-    private var ignoreFocusUntil = Date.distantPast
-    private var timers: [Timer] = []
+    private var syncTimer: Timer?
     private var capturing = false
-    private var appleStageManagerWasOn = false
-    private var unminimizing: Set<CGWindowID> = []
-    private var minimizeItems: [pid_t: AXUIElement] = [:]
     private var thumbnailTimer: Timer?
-    private var thumbnailTick = 0
     private var appInfoCache: [pid_t: (name: String, icon: NSImage?)] = [:]
-    private(set) var isInMissionControl = false
-    private var exposed: [CGWindowID] = []
     private var subscriptions: Set<AnyCancellable> = []
-    private let switcherModel = SwitcherModel()
-    private var recentFocus: [CGWindowID] = []
-    /// Windows in the order Appmarks first saw them, which is the floating appmarks' fixed order.
+    /// The active window, which the appmarks ring and snap onto.
+    private var focused: CGWindowID?
+    /// Windows in the order Appmarks first saw them, which is the appmarks' fixed order.
     private var openingOrder: [CGWindowID] = []
-    private lazy var switcher = SwitcherPanel(model: switcherModel) { [weak self] id in
-        self?.focusStageWindow(id)
-    }
-    private lazy var widget = WidgetPanel(onSelect: { [weak self] id in self?.focusStageWindow(id) },
+    private lazy var widget = WidgetPanel(onSelect: { [weak self] id in self?.focus(id) },
                                           snapTargets: { [weak self] in self?.snapTargets() ?? [] })
-    private lazy var panel = StripPanel(model: strip) { [weak self] id, replace in
-        self?.select(id, replacingStage: replace)
-    }
-
-    /// Off, Appmarks leaves windows where they are and shows them all as one floating set of appmarks.
-    private var parksWindows: Bool { Settings.shared.style.parkWindows }
 
     init() {
-        // A hung app must not stall every click passing through the event tap.
+        // A hung app must not stall the sync.
         AXUIElementSetMessagingTimeout(AXUIElementCreateSystemWide(), 0.25)
         let center = NSWorkspace.shared.notificationCenter
         center.addObserver(forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated {
-                self?.updateSwitcher()
-                self?.scheduleFocusCheck()
+                self?.updateWidget()
+                self?.scheduleUpdate()
             }
         }
         for name in [NSWorkspace.didLaunchApplicationNotification, NSWorkspace.didTerminateApplicationNotification,
@@ -79,297 +57,73 @@ final class StageManager {
             }
         }
         let style = Settings.shared.$style.receive(on: RunLoop.main)
-        style.map { ($0.effectiveStripWidth, $0.stripPosition) }.removeDuplicates(by: ==).dropFirst()
-            .sink { [weak self] _ in MainActor.assumeIsolated { self?.panel.reposition() } }
-            .store(in: &subscriptions)
         style.map(\.refreshInterval).removeDuplicates().dropFirst()
             .sink { [weak self] _ in MainActor.assumeIsolated { if self?.isActive == true { self?.scheduleThumbnails() } } }
             .store(in: &subscriptions)
         style.dropFirst()
-            .sink { [weak self] _ in MainActor.assumeIsolated { self?.updateSwitcher() } }
-            .store(in: &subscriptions)
-        style.map(\.parkWindows).removeDuplicates().dropFirst()
-            .sink { [weak self] _ in
-                MainActor.assumeIsolated {
-                    guard let self, self.isActive else { return }
-                    self.stop()
-                    self.start()
-                }
-            }
+            .sink { [weak self] _ in MainActor.assumeIsolated { self?.updateWidget() } }
             .store(in: &subscriptions)
         style.map(\.captureWidth).removeDuplicates().dropFirst()
             .sink { [weak self] _ in MainActor.assumeIsolated { self?.refreshThumbnails() } }
             .store(in: &subscriptions)
-        NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main) { [weak self] _ in
-            MainActor.assumeIsolated { self?.panel.reposition() }
-        }
     }
 
     func start() {
         guard !isActive else { return }
         isActive = true
-        appleStageManagerWasOn = parksWindows && AppleStageManager.isEnabled
-        if appleStageManagerWasOn { AppleStageManager.setEnabled(false) }
         reconcile()
-        if parksWindows {
-            let keep = frontmostFocusedWindowID()
-            for id in Array(stage) where id != keep { park(id) }
-            if let keep, let window = windows[keep], let frame = window.element.frame,
-               frame.minX < Geometry.stageArea.minX || frame.maxX > Geometry.stageArea.maxX {
-                place(window, in: Geometry.centered(frame.size))
-            }
-            panel.orderFrontRegardless()
-        } else {
-            // Windows left parked by the other mode, or by a force-quit, come back.
-            unparkAll()
+        Log.write("start: windows=\(windows.count) screenCapture=\(CGPreflightScreenCaptureAccess())")
+        syncTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.reconcile() }
         }
-        publish()
-        Log.write("start: stage=\(stage.count) parked=\(parked.count) strip=\(strip.items.count) panel=\(panel.frame) visible=\(panel.isVisible) screenCapture=\(CGPreflightScreenCaptureAccess())")
-        timers = [
-            Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
-                MainActor.assumeIsolated { self?.reconcile() }
-            },
-        ]
         scheduleThumbnails()
     }
 
-    /// Puts every off-stage window back where it was. Runs on pause and on quit, so nothing stays stranded off-screen.
     func stop() {
         isActive = false
-        timers.forEach { $0.invalidate() }
-        timers = []
+        syncTimer?.invalidate()
+        syncTimer = nil
         thumbnailTimer?.invalidate()
         thumbnailTimer = nil
-        unparkAll()
-        panel.orderOut(nil)
-        switcher.orderOut(nil)
         widget.orderOut(nil)
-        publish()
-        if appleStageManagerWasOn { AppleStageManager.setEnabled(true) }
     }
 
-    private func unparkAll() {
-        for id in parked {
-            guard let window = windows[id] else { continue }
-            if let origin = window.savedOrigin {
-                place(window, in: CGRect(origin: origin, size: window.size))
-            } else {
-                place(window, in: Geometry.centered(window.size))
-            }
-            stage.insert(id)
-        }
-        parked = []
-    }
-
-    /// Called from the event tap on every left click, before the target app sees it. Returns true when the
-    /// click landed on a stage window's minimize button and that window has been parked instead.
-    func parkIfMinimizeButton(at point: CGPoint) -> Bool {
-        guard isActive, parksWindows else { return false }
-        // Runs on every click system-wide, so the cheap window-server frames gate the Accessibility hit test.
-        let titleBars = WindowServer.frames(of: Array(stage)).map { CGRect(x: $0.minX, y: $0.minY, width: 100, height: 56) }
-        guard titleBars.contains(where: { $0.contains(point) }) else { return false }
-
-        var hit: AXUIElement?
-        guard AXUIElementCopyElementAtPosition(AXUIElementCreateSystemWide(), Float(point.x), Float(point.y), &hit) == .success,
-              let hit, hit.subrole == kAXMinimizeButtonSubrole, hit.isEnabled,
-              let id = hit.window?.windowID, stage.contains(id), let pid = windows[id]?.pid
-        else { return false }
-        ignoreFocus(for: 1)
-        park(id)
-        focusNextStageWindow(of: pid)
-        publish()
-        return true
-    }
-
-    /// Called from the event tap on ⌘M. Returns true when the focused stage window has been parked
-    /// instead of minimized, which only happens in apps whose ⌘M is Minimize.
-    func parkFocusedIfMinimizeShortcut() -> Bool {
-        guard isActive, parksWindows, let app = NSWorkspace.shared.frontmostApplication,
-              let id = frontmostFocusedWindowID(), stage.contains(id),
-              minimizeItem(for: app.processIdentifier)?.isEnabled == true
-        else { return false }
-        ignoreFocus(for: 1)
-        park(id)
-        focusNextStageWindow(of: app.processIdentifier)
-        publish()
-        return true
-    }
-
-    /// The app otherwise keeps focus on the window just parked, so ⌘M twice would hit a hidden window.
-    private func focusNextStageWindow(of pid: pid_t) {
-        guard let next = stage.compactMap({ windows[$0] }).first(where: { $0.pid == pid }) else { return }
-        next.element.focus(appPID: pid)
-    }
-
-    private func minimizeItem(for pid: pid_t) -> AXUIElement? {
-        if let item = minimizeItems[pid], item.title != nil { return item }
-        minimizeItems[pid] = AXUIElementCreateApplication(pid).minimizeMenuItem
-        return minimizeItems[pid]
-    }
-
-    /// A plain click adds the window to whatever is already on stage; Option-click swaps the stage for it.
-    func select(_ id: CGWindowID, replacingStage: Bool) {
-        guard isActive, let window = windows[id] else { return }
-        ignoreFocus()
-        if replacingStage {
-            for other in Array(stage) where other != id { park(other) }
-        }
-        bringToStage(window)
-        NSRunningApplication(processIdentifier: window.pid)?.activate()
-        window.element.focus(appPID: window.pid)
-        publish()
-    }
-
-    // Mission Control lays windows out around where they sit, so parked windows past the screen's right
-    // edge stretch its layout to twice the screen and shrink every tile. macOS 27 exposes no signal that
-    // Mission Control is open, so the event tap calls this on the key that opens it, before Dock sees it.
-    func beginMissionControl() -> Bool {
-        guard isActive, parksWindows, !isInMissionControl else { return false }
-        isInMissionControl = true
-        exposed = parked.filter { windows[$0]?.present == true }
-        switcher.orderOut(nil)
-        for id in exposed {
-            guard let window = windows[id] else { continue }
-            place(window, in: window.savedOrigin.map { CGRect(origin: $0, size: window.size) } ?? Geometry.centered(window.size))
-        }
-        return true
-    }
-
-    /// Mission Control closes on the click or key that follows; give its zoom-out time to finish, then keep
-    /// the window it chose on stage and send the rest back to the strip.
-    func scheduleMissionControlEnd() {
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.7) { [weak self] in
-            MainActor.assumeIsolated { self?.endMissionControl() }
-        }
-    }
-
-    private func endMissionControl() {
-        guard isInMissionControl else { return }
-        isInMissionControl = false
-        let chosen = frontmostFocusedWindowID()
-        for id in exposed where id != chosen {
-            windows[id]?.element.setPosition(Geometry.parkPoint)
-        }
-        if let chosen, exposed.contains(chosen) {
-            parked.removeAll { $0 == chosen }
-            stage.insert(chosen)
-        }
-        exposed = []
-        ignoreFocus()
-        publish()
-    }
-
-    func sendFocusedToStrip() {
-        guard isActive, parksWindows, let id = frontmostFocusedWindowID(), stage.contains(id) else { return }
-        ignoreFocus()
-        park(id)
-        publish()
-    }
-
-    private func park(_ id: CGWindowID) {
-        guard let window = windows[id] else { return }
-        if let frame = window.element.frame, !Geometry.isParked(frame) {
-            window.size = frame.size
-            window.savedOrigin = frame.origin
-        }
-        window.element.setPosition(Geometry.parkPoint)
-        Log.write("park \(id) '\(window.title)' -> \(Geometry.parkPoint) landed \(window.element.frame.map { "\($0)" } ?? "nil")")
-        stage.remove(id)
-        parked.removeAll { $0 == id }
-        parked.insert(id, at: 0)
-    }
-
-    private func bringToStage(_ window: ManagedWindow) {
-        place(window, in: Geometry.centered(window.size))
-        parked.removeAll { $0 == window.id }
-        stage.insert(window.id)
-    }
-
-    /// Position, size, position again: apps clamp a resize against the frame they currently sit in.
-    private func place(_ window: ManagedWindow, in frame: CGRect) {
-        window.element.setPosition(frame.origin)
-        window.element.setSize(frame.size)
-        window.element.setPosition(frame.origin)
-    }
-
-    private func ignoreFocus(for seconds: TimeInterval = 0.4) {
-        ignoreFocusUntil = max(ignoreFocusUntil, Date().addingTimeInterval(seconds))
-    }
-
-    // Cmd-Tab or a Dock click onto an off-stage window pulls it onto the stage. The short delay lets a
-    // closing or minimising window's own notification land first, so its sibling is not dragged in.
-    private func scheduleFocusCheck() {
+    // Focus settles a moment after an app activates, and a closing or minimising window's own
+    // notification lands first, so the appmarks look again shortly after.
+    private func scheduleUpdate() {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in
-            MainActor.assumeIsolated {
-                self?.checkFocus()
-                self?.updateSwitcher()
-            }
+            MainActor.assumeIsolated { self?.updateWidget() }
         }
     }
 
-    /// Pins previews of the other stage windows to the focused window's corner, most recently used first.
-    func updateSwitcher() {
-        guard parksWindows else { return updateWidget() }
-        let style = Settings.shared.style
-        // While Appmarks' own Settings window is focused, stay on the last window so tuning is visible.
-        let ownWindowFocused = NSWorkspace.shared.frontmostApplication?.processIdentifier == getpid()
-        guard isActive, style.showSwitcher, !isInMissionControl,
-              let id = ownWindowFocused ? recentFocus.first : frontmostFocusedWindowID(), stage.contains(id),
-              let frame = windows[id]?.element.frame
-        else { return switcher.orderOut(nil) }
-
-        recentFocus.removeAll { $0 == id || !stage.contains($0) }
-        recentFocus.insert(id, at: 0)
-        let others = stage.filter { $0 != id && windows[$0]?.present == true }
-            .sorted { (recentFocus.firstIndex(of: $0) ?? .max) < (recentFocus.firstIndex(of: $1) ?? .max) }
-        guard !others.isEmpty else { return switcher.orderOut(nil) }
-
-        let items = others.compactMap { windows[$0] }.map {
-            SwitcherItem(id: $0.id, title: $0.title, icon: appInfo($0.pid).icon,
-                         thumbnail: $0.thumbnail)
-        }
-        // The 1s sync and every thumbnail refresh land here; with nothing changed, skip the relayout.
-        if items == switcherModel.items, switcher.isVisible, switcher.isAttached(to: id, frame: frame, style: style) { return }
-        if items != switcherModel.items { switcherModel.items = items }
-        switcher.attach(to: frame, id: id, style: style)
-    }
-
-    /// Every window on screen, focused one marked, in the order they opened.
+    /// Every window on screen, the active one marked, in the order they opened.
     private func updateWidget() {
         let style = Settings.shared.style
         guard isActive, style.showSwitcher else { return widget.orderOut(nil) }
         // While Appmarks' own Settings window is focused, keep marking the last window; an app with no
         // window open, or the desktop, leaves none active.
         if NSWorkspace.shared.frontmostApplication?.processIdentifier != getpid() {
-            recentFocus = frontmostFocusedWindowID().map { [$0] } ?? []
+            focused = frontmostFocusedWindowID()
         }
-        let items = openingOrder.compactMap { windows[$0] }.filter { stage.contains($0.id) && $0.present }.map {
+        let items = openingOrder.compactMap { windows[$0] }.filter(\.present).map {
             SwitcherItem(id: $0.id, title: $0.title, icon: appInfo($0.pid).icon, thumbnail: $0.thumbnail,
-                         isFocused: $0.id == recentFocus.first, isMinimized: $0.minimized)
+                         isFocused: $0.id == focused, isMinimized: $0.minimized)
         }
-        widget.update(items: items, focused: recentFocus.first, style: style)
+        widget.update(items: items, focused: focused, style: style)
     }
 
     /// Only the active window: snapped, the appmarks move to whichever window is active anyway.
     private func snapTargets() -> [(id: CGWindowID, frame: CGRect)] {
-        guard let id = recentFocus.first, stage.contains(id), windows[id]?.present == true else { return [] }
-        return WindowServer.onScreen([id])
+        guard let focused, windows[focused]?.present == true else { return [] }
+        return WindowServer.onScreen([focused])
     }
 
-    private func focusStageWindow(_ id: CGWindowID) {
+    private func focus(_ id: CGWindowID) {
         guard let window = windows[id] else { return }
         if window.minimized { window.element.setMinimized(false) }
         NSRunningApplication(processIdentifier: window.pid)?.activate()
         window.element.focus(appPID: window.pid)
-        scheduleFocusCheck()
-    }
-
-    private func checkFocus() {
-        guard isActive, !isInMissionControl, Date() > ignoreFocusUntil,
-              let id = frontmostFocusedWindowID(), let window = windows[id], !stage.contains(id)
-        else { return }
-        bringToStage(window)
-        publish()
+        scheduleUpdate()
     }
 
     private func frontmostFocusedWindowID() -> CGWindowID? {
@@ -378,8 +132,6 @@ final class StageManager {
     }
 
     func reconcile() {
-        guard !isInMissionControl else { return }
-        catchMinimizedStageWindows()
         let apps = NSWorkspace.shared.runningApplications.filter {
             $0.activationPolicy == .regular && !$0.isHidden && $0.processIdentifier != getpid()
         }
@@ -390,56 +142,40 @@ final class StageManager {
             let pid = app.processIdentifier
             if observers[pid] == nil { observe(pid) }
             for element in AXUIElementCreateApplication(pid).windows {
-                let minimized = element.isMinimized
-                guard element.subrole == kAXStandardWindowSubrole, !minimized || !parksWindows,
+                guard element.subrole == kAXStandardWindowSubrole,
                       let id = element.windowID, let frame = element.frame,
                       frame.width >= 120, frame.height >= 80
                 else { continue }
                 seen.insert(id)
-                if let window = windows[id] {
-                    window.element = element
-                    watch(window)
-                    window.title = element.title ?? window.title
-                    window.present = true
-                    window.minimized = minimized
-                    if parked.contains(id), !Geometry.isParked(frame) {
-                        Log.write("unpark-by-move \(id) '\(window.title)' frame \(frame)")
-                        parked.removeAll { $0 == id }
-                        stage.insert(id)
-                    }
-                } else {
-                    let window = ManagedWindow(id: id, pid: pid, element: element, title: element.title ?? "", size: frame.size)
-                    window.minimized = minimized
+                let window = windows[id] ?? {
+                    let window = ManagedWindow(id: id, pid: pid, element: element, title: element.title ?? "")
                     windows[id] = window
                     openingOrder.append(id)
-                    watch(window)
-                    if Geometry.isParked(frame) {
-                        parked.append(id)
-                    } else {
-                        stage.insert(id)
-                    }
-                }
+                    return window
+                }()
+                window.element = element
+                watch(window)
+                window.title = element.title ?? window.title
+                window.present = true
+                window.minimized = element.isMinimized
             }
         }
 
-        for (id, window) in windows where !seen.contains(id) && !unminimizing.contains(id) {
-            if !livePIDs.contains(window.pid) || window.element.frame == nil || window.element.isMinimized {
+        for (id, window) in windows where !seen.contains(id) {
+            if !livePIDs.contains(window.pid) || window.element.frame == nil {
                 forget(id)
             } else {
                 window.present = false
             }
         }
         for pid in observers.keys where !livePIDs.contains(pid) { observers[pid] = nil }
-        minimizeItems = minimizeItems.filter { livePIDs.contains($0.key) }
         appInfoCache = appInfoCache.filter { livePIDs.contains($0.key) }
-        publish()
+        updateWidget()
     }
 
     private func forget(_ id: CGWindowID) {
         windows[id] = nil
         openingOrder.removeAll { $0 == id }
-        stage.remove(id)
-        parked.removeAll { $0 == id }
         watchedWindows.remove(id)
     }
 
@@ -453,16 +189,6 @@ final class StageManager {
         return info
     }
 
-    private func publish() {
-        let items = parked.compactMap { id -> StripItem? in
-            guard let window = windows[id], window.present else { return nil }
-            let app = appInfo(window.pid)
-            return StripItem(id: id, title: window.title, appName: app.name, icon: app.icon, thumbnail: window.thumbnail)
-        }
-        if items != strip.items { strip.items = items }
-        updateSwitcher()
-    }
-
     private func scheduleThumbnails() {
         thumbnailTimer?.invalidate()
         thumbnailTimer = Timer.scheduledTimer(withTimeInterval: Settings.shared.style.refreshInterval, repeats: true) { [weak self] _ in
@@ -474,46 +200,12 @@ final class StageManager {
     private func refreshThumbnails() {
         guard isActive, !capturing else { return }
         capturing = true
-        // Stage windows feed the switcher and change constantly; parked ones sit off-screen and rarely do,
-        // so they are refreshed every fifth tick, and as soon as one has no thumbnail yet.
-        thumbnailTick += 1
-        let includeParked = thumbnailTick % 5 == 1
-        let ids = Set(windows.keys.filter { stage.contains($0) || includeParked || windows[$0]?.thumbnail == nil })
+        let ids = Set(windows.keys)
         Task { @MainActor in
             let images = await Thumbnails.capture(ids, width: Settings.shared.style.captureWidth)
             for (id, image) in images { windows[id]?.thumbnail = image }
             capturing = false
-            publish()
-        }
-    }
-
-    // Focus leaves a window the moment its minimize starts, while kAXWindowMiniaturizedNotification only
-    // arrives once the genie has finished, so focus changes and the sync tick are where minimize is caught.
-    private func catchMinimizedStageWindows() {
-        guard isActive, parksWindows, !isInMissionControl else { return }
-        for id in Array(stage) where windows[id]?.element.isMinimized == true {
-            parkMinimized(id)
-        }
-    }
-
-    /// Minimize sends the window to the strip, not the Dock. There is no public hook before the genie
-    /// runs, so the window is moved off-screen while still minimized and then restored there.
-    private func parkMinimized(_ id: CGWindowID) {
-        guard let window = windows[id], !unminimizing.contains(id) else { return }
-        ignoreFocus(for: 1.5)
-        unminimizing.insert(id)
-        park(id)
-        window.element.setMinimized(false)
-        publish()
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in
-            MainActor.assumeIsolated {
-                guard let self, let window = self.windows[id] else { return }
-                self.unminimizing.remove(id)
-                if let frame = window.element.frame, !Geometry.isParked(frame) {
-                    window.element.setPosition(Geometry.parkPoint)
-                }
-                Log.write("minimize -> strip \(id) '\(window.title)' landed \(window.element.frame.map { "\($0)" } ?? "nil")")
-            }
+            updateWidget()
         }
     }
 
@@ -548,16 +240,10 @@ final class StageManager {
     private func handle(_ notification: String, _ element: AXUIElement) {
         switch notification {
         case kAXFocusedWindowChangedNotification, kAXMainWindowChangedNotification:
-            catchMinimizedStageWindows()
-            updateSwitcher()
-            scheduleFocusCheck()
+            updateWidget()
+            scheduleUpdate()
         case kAXMovedNotification, kAXResizedNotification:
-            parksWindows ? switcher.follow() : widget.follow()
-        case kAXUIElementDestroyedNotification, kAXWindowMiniaturizedNotification:
-            ignoreFocus()
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
-                MainActor.assumeIsolated { self?.reconcile() }
-            }
+            widget.follow()
         default:
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
                 MainActor.assumeIsolated { self?.reconcile() }
