@@ -1,7 +1,7 @@
 import Foundation
 import ServiceManagement
 
-/// Appmarks opens at login by default. It registers itself only on the first launch, so turning it
+/// Bubbleg opens at login by default. It registers itself only on the first launch, so turning it
 /// off in Settings or in System Settings → General → Login Items sticks.
 enum LaunchAtLogin {
     private static let enabledOnceKey = "launchAtLoginEnabledOnce"

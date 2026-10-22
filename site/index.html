@@ -3,9 +3,9 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Appmarks: a better way to switch between windows on your Mac. Free.</title>
-  <meta name="description" content="A free Mac app for switching between windows. Every open window is a small appmark you can click, drag anywhere or snap onto the window you're in." />
-  <meta property="og:title" content="Appmarks" />
+  <title>Bubbleg: a better way to switch between windows on your Mac. Free.</title>
+  <meta name="description" content="A free Mac app for switching between windows. Every open window is a small bubble you can click, drag anywhere or snap onto the window you're in." />
+  <meta property="og:title" content="Bubbleg" />
   <meta property="og:description" content="A free, better way to switch between windows on your Mac." />
   <meta property="og:type" content="website" />
   <meta name="twitter:card" content="summary" />
@@ -287,9 +287,9 @@
     .credit a { color: inherit; text-underline-offset: 2px; }
     .credit a:hover { color: var(--ink); }
 
-    /* Appmarks to play with: the app's floating panel, sized as the app draws it (32px tall
+    /* Bubbleg to play with: the app's floating panel, sized as the app draws it (32px tall
        previews 6px apart, a 5px backdrop, an 80px square on hover). Script places it. */
-    .appmarks {
+    .bubbles {
       position: fixed;
       left: 0;
       top: 0;
@@ -309,21 +309,21 @@
       user-select: none;
       -webkit-user-select: none;
     }
-    .appmarks.vertical { flex-direction: column; }
-    .appmarks.grow-end { align-items: flex-start; }
-    .appmarks.grow-start { align-items: flex-end; }
-    .appmarks.dragging { cursor: grabbing; }
-    /* With the pointer inside, the panel opens once to the room an appmark grown to the 80px
-       square needs, and holds that shape until the pointer leaves; inside it, the appmark under
+    .bubbles.vertical { flex-direction: column; }
+    .bubbles.grow-end { align-items: flex-start; }
+    .bubbles.grow-start { align-items: flex-end; }
+    .bubbles.dragging { cursor: grabbing; }
+    /* With the pointer inside, the panel opens once to the room a bubble grown to the 80px
+       square needs, and holds that shape until the pointer leaves; inside it, the bubble under
        the pointer grows and the others slide aside. Script sets the sizes and the .hovered one. */
-    .appmarks {
+    .bubbles {
       transition: width 0.24s cubic-bezier(0.2, 0.8, 0.2, 1), height 0.24s cubic-bezier(0.2, 0.8, 0.2, 1);
     }
-    .appmarks.gliding {
+    .bubbles.gliding {
       transition: left 0.12s ease-out, top 0.12s ease-out,
         width 0.24s cubic-bezier(0.2, 0.8, 0.2, 1), height 0.24s cubic-bezier(0.2, 0.8, 0.2, 1);
     }
-    .appmark {
+    .bubble {
       flex: none;
       width: var(--w);
       height: 32px;
@@ -334,23 +334,23 @@
       transition: width 0.24s cubic-bezier(0.2, 0.8, 0.2, 1), height 0.24s cubic-bezier(0.2, 0.8, 0.2, 1),
         box-shadow 0.24s ease-out;
     }
-    .appmark svg { display: block; width: 100%; height: 100%; }
-    .appmark.focused { outline: 2px solid #F2409D; outline-offset: -2px; }
-    .appmark.hovered {
+    .bubble svg { display: block; width: 100%; height: 100%; }
+    .bubble.focused { outline: 2px solid #F2409D; outline-offset: -2px; }
+    .bubble.hovered {
       width: max(var(--w), 80px);
       height: 80px;
       box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25), 0 0 0 0.5px rgba(0, 0, 0, 0.15);
     }
-    .appmarks.dragging .appmark { cursor: grabbing; }
+    .bubbles.dragging .bubble { cursor: grabbing; }
     @media (prefers-color-scheme: dark) {
-      .appmarks { background: rgba(40, 42, 50, 0.72); box-shadow: 0 0 0 1px rgba(236, 238, 242, 0.1), 0 8px 24px rgba(0, 0, 0, 0.4); }
+      .bubbles { background: rgba(40, 42, 50, 0.72); box-shadow: 0 0 0 1px rgba(236, 238, 242, 0.1), 0 8px 24px rgba(0, 0, 0, 0.4); }
     }
     @media (prefers-reduced-motion: reduce) {
-      .appmark, .appmarks, .appmarks.gliding { transition: none; }
+      .bubble, .bubbles, .bubbles.gliding { transition: none; }
     }
     /* A Mac thing: pointer and hover. */
     @media (max-width: 700px), (hover: none) {
-      .appmarks { display: none; }
+      .bubbles { display: none; }
     }
 
     /* Phones: a normal scrolling column; the video takes the full width. */
@@ -365,14 +365,14 @@
 <body>
   <main class="page">
     <section class="intro">
-      <img class="icon" src="icon.png" alt="Appmarks" width="144" height="144" />
+      <img class="icon" src="icon.png" alt="Bubbleg" width="144" height="144" />
       <h1>A better way to switch windows<br class="split" /> on&nbsp;Mac and it's&nbsp;free!</h1>
       <a class="get" href="/download">Download for Mac</a>
     </section>
 
     <section class="stage" aria-label="Demo">
       <div class="screen has-video muted" id="screen">
-        <video id="demo" autoplay muted loop playsinline preload="auto" poster="demo-poster.jpg" aria-label="Switching between windows with Appmarks">
+        <video id="demo" autoplay muted loop playsinline preload="auto" poster="demo-poster.jpg" aria-label="Switching between windows with Bubbleg">
           <source src="demo-av1.mp4" type='video/mp4; codecs="av01.0.09M.10"' />
           <source src="demo.mp4" type="video/mp4" />
         </video>
@@ -400,8 +400,8 @@
   </main>
 
   <!-- Drawn windows rather than screenshots: crisp at any size, and nothing private in them. -->
-  <div class="appmarks" id="appmarks" aria-hidden="true" title="Drag me around">
-    <div class="appmark focused" style="--w: 51px">
+  <div class="bubbles" id="bubbles" aria-hidden="true" title="Drag me around">
+    <div class="bubble focused" style="--w: 51px">
       <svg viewBox="0 0 160 100" preserveAspectRatio="xMidYMid slice">
         <defs><linearGradient id="am-hero" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FFB3DE"/><stop offset="1" stop-color="#A78BFA"/></linearGradient></defs>
         <rect width="160" height="100" fill="#FFFFFF"/>
@@ -415,7 +415,7 @@
         <rect x="40" y="58" width="80" height="42" rx="5" fill="url(#am-hero)"/>
       </svg>
     </div>
-    <div class="appmark" style="--w: 48px">
+    <div class="bubble" style="--w: 48px">
       <svg viewBox="0 0 150 100" preserveAspectRatio="xMidYMid slice">
         <rect width="150" height="100" fill="#FFFFFF"/>
         <rect width="44" height="100" fill="#EDEDF1"/>
@@ -428,7 +428,7 @@
         <g fill="#B9B9C1"><rect x="64" y="22" width="46" height="4" rx="2"/><rect x="64" y="32" width="38" height="4" rx="2"/><rect x="64" y="42" width="54" height="4" rx="2"/><rect x="64" y="52" width="34" height="4" rx="2"/><rect x="64" y="62" width="48" height="4" rx="2"/><rect x="64" y="72" width="40" height="4" rx="2"/><rect x="64" y="82" width="52" height="4" rx="2"/></g>
       </svg>
     </div>
-    <div class="appmark" style="--w: 45px">
+    <div class="bubble" style="--w: 45px">
       <svg viewBox="0 0 140 100" preserveAspectRatio="xMidYMid slice">
         <rect width="140" height="100" fill="#1E1F25"/>
         <rect width="140" height="14" fill="#2A2B32"/>
@@ -443,7 +443,7 @@
         <rect x="10" y="82" width="30" height="4" rx="2" fill="#5C6370"/><rect x="43" y="82" width="46" height="4" rx="2" fill="#5C6370"/>
       </svg>
     </div>
-    <div class="appmark" style="--w: 29px">
+    <div class="bubble" style="--w: 29px">
       <svg viewBox="0 0 90 100" preserveAspectRatio="xMidYMid slice">
         <rect width="90" height="100" fill="#F2F2F5"/>
         <rect width="90" height="14" fill="#E9E9EE"/>
@@ -457,7 +457,7 @@
         <rect x="64" y="80.5" width="14" height="8" rx="4" fill="#34C759"/><circle cx="74" cy="84.5" r="3" fill="#FFFFFF"/>
       </svg>
     </div>
-    <div class="appmark" style="--w: 48px">
+    <div class="bubble" style="--w: 48px">
       <svg viewBox="0 0 150 100" preserveAspectRatio="xMidYMid slice">
         <defs>
           <linearGradient id="am-sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8EC5FF"/><stop offset="0.6" stop-color="#FFC2DF"/><stop offset="1" stop-color="#FFD9A8"/></linearGradient>
@@ -509,12 +509,12 @@
       for (const button of chapters) button.setAttribute("aria-current", String(button === current));
     });
 
-    // Appmarks to play with, by the app's own rules (Widget.swift): drag the panel anywhere; it
+    // Bubbleg to play with, by the app's own rules (Widget.swift): drag the panel anywhere; it
     // clicks onto the viewport's corners and edge middles, and onto a side of the video, which it
     // then slides along, and comes free once pulled 64px away. Near a left or right edge it turns
-    // into a column, near the top or bottom into a row. Clicking an appmark only moves the ring.
+    // into a column, near the top or bottom into a row. Clicking a bubble only moves the ring.
     (() => {
-      const panel = document.getElementById("appmarks");
+      const panel = document.getElementById("bubbles");
       if (matchMedia("(max-width: 700px), (hover: none)").matches) return panel.remove();
       const items = [...panel.children];
       const widths = items.map(item => parseFloat(item.style.getPropertyValue("--w")));
@@ -535,7 +535,7 @@
       const GROWN = 80;
 
       // The shape while the pointer is inside: room across for the 80px square, and along for
-      // the one appmark that grows the most, so moving between appmarks never resizes it.
+      // the one bubble that grows the most, so moving between bubbles never resizes it.
       function openSize(isVertical) {
         const rest = bodySize(isVertical);
         const growth = isVertical ? GROWN - HEIGHT : Math.max(...widths.map(w => Math.max(GROWN - w, 0)));
@@ -556,7 +556,7 @@
         hovered?.classList.add("hovered");
       }
 
-      // The appmark nearest the pointer along the stack, so the gaps between them belong to the
+      // The bubble nearest the pointer along the stack, so the gaps between them belong to the
       // nearer one and crossing a gap doesn't shrink and regrow anything.
       function nearestItem(event) {
         const at = vertical ? event.clientY : event.clientX;
@@ -577,7 +577,7 @@
         return { x: r.left, y: r.top, w: r.width, h: r.height };
       };
 
-      // The resting appmarks and their backdrop: what snaps, as opposed to room to grow on hover.
+      // The resting bubbles and their backdrop: what snaps, as opposed to room to grow on hover.
       function bodySize(isVertical) {
         const along = isVertical ? items.length * HEIGHT : widths.reduce((a, b) => a + b, 0);
         const length = along + SPACING * (items.length - 1) + 2 * PADDING;
@@ -602,7 +602,7 @@
         const fits = outside >= 0 && outside + thickness <= (isVertical ? screen.w : screen.h);
         const across = fits ? outside : before ? edgeMin + WINDOW_GAP : edgeMax - WINDOW_GAP - thickness;
         const body = isVertical ? { x: across, y: along, ...size } : { x: along, y: across, ...size };
-        // Hovered appmarks grow away from the video outside it, and into it when inside.
+        // Hovered bubbles grow away from the video outside it, and into it when inside.
         return { body, vertical: isVertical, growStart: before === fits };
       }
 
@@ -623,7 +623,7 @@
         return { body, vertical: a.vertical, growStart };
       }
 
-      // Pinned by the edge the appmarks grow away from, and centred along their length, so a
+      // Pinned by the edge the bubbles grow away from, and centred along their length, so a
       // hovered one grows outward and both ways along the stack, as in the app.
       function apply(p, glide) {
         placed = p;
@@ -653,7 +653,7 @@
         panel.style.transform = `translate(${tx}, ${ty})`;
       }
 
-      // The appmarks under the pointer, as a row or a column, held where they were grabbed.
+      // The bubbles under the pointer, as a row or a column, held where they were grabbed.
       function freeBody(pointer, isVertical) {
         const size = bodySize(isVertical);
         const [fx, fy] = isVertical ? [drag.across, drag.along] : [drag.along, drag.across];
@@ -663,7 +663,7 @@
       const distance = (pt, r) =>
         Math.hypot(Math.max(r.x - pt.x, 0, pt.x - r.x - r.w), Math.max(r.y - pt.y, 0, pt.y - r.y - r.h));
 
-      // How far along `side` of the video the appmarks would sit, if the pointer has them within reach.
+      // How far along `side` of the video the bubbles would sit, if the pointer has them within reach.
       function sideOffset(pointer, side, reach) {
         const isVertical = side === "left" || side === "right";
         const body = freeBody(pointer, isVertical), snapped = onVideo(side, 0).body, v = video();
@@ -737,8 +737,8 @@
         const { x, y, w, h } = placed.body;
         const along = vertical ? (event.clientY - y) / h : (event.clientX - x) / w;
         const across = vertical ? (event.clientX - x) / w : (event.clientY - y) / h;
-        // Noted now: with the pointer captured, the release reports the panel, not the appmark.
-        const item = event.target.closest(".appmark");
+        // Noted now: with the pointer captured, the release reports the panel, not the bubble.
+        const item = event.target.closest(".bubble");
         drag = { startX: event.clientX, startY: event.clientY, along: clamp(along, 0, 1), across: clamp(across, 0, 1), item, moved: false };
         panel.setPointerCapture(event.pointerId);
       });
@@ -767,7 +767,7 @@
         const dragged = drag.moved;
         drag = null;
         panel.classList.remove("dragging");
-        // Dropped with the pointer still on the appmarks, they open again under it.
+        // Dropped with the pointer still on the bubbles, they open again under it.
         if (dragged) {
           const r = panel.getBoundingClientRect();
           const inside = event.clientX >= r.left && event.clientX <= r.right && event.clientY >= r.top && event.clientY <= r.bottom;

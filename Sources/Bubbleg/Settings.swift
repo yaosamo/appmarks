@@ -6,12 +6,12 @@ struct Style: Codable, Equatable {
     var showSwitcher = true
     var alwaysDark = false
 
-    /// How far snapped appmarks sit from the window's edge.
+    /// How far snapped bubbles sit from the window's edge.
     var switcherOffsetX = 8.0
     var switcherHeight = 32.0
     var switcherSpacing = 6.0
     var switcherCornerRadius = 5.0
-    /// The square the appmark under the pointer grows to.
+    /// The square the bubble under the pointer grows to.
     var switcherHoverSize = 80.0
     var switcherBackground = true
     var switcherShowIcon = true
@@ -37,9 +37,10 @@ final class Settings: ObservableObject {
         didSet { UserDefaults.standard.set(try? JSONEncoder().encode(style), forKey: Self.key) }
     }
 
-    /// Falls back to the settings saved under the app's former name, SideStage.
+    /// Falls back to the settings saved under the app's former names, Appmarks and SideStage.
     private init() {
         let saved = UserDefaults.standard.data(forKey: Self.key)
+            ?? UserDefaults(suiteName: "com.yaric.appmarks")?.data(forKey: Self.key)
             ?? UserDefaults(suiteName: "com.yaric.sidestage")?.data(forKey: Self.key)
         style = saved.flatMap(Style.decode) ?? Style()
     }
@@ -69,7 +70,7 @@ final class SettingsWindow {
         if window == nil {
             let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 460, height: 520),
                                   styleMask: [.titled, .closable, .resizable, .fullSizeContentView], backing: .buffered, defer: false)
-            window.title = "Appmarks Settings"
+            window.title = "Bubbleg Settings"
             window.isReleasedWhenClosed = false
             window.level = .floating
             window.contentView = NSHostingView(rootView: SettingsView(settings: .shared))
@@ -94,8 +95,8 @@ private struct SettingsView: View {
             Form {
                 Section {
                     Toggle(isOn: $settings.style.showSwitcher) {
-                        Text("Show appmarks")
-                        Text("Every open window as an appmark in a panel you can drag anywhere or snap onto the active window.")
+                        Text("Show bubbles")
+                        Text("Every open window as a bubble in a panel you can drag anywhere or snap onto the active window.")
                     }
                     Toggle("Open at login", isOn: Binding(
                         get: { openAtLogin },
@@ -103,7 +104,7 @@ private struct SettingsView: View {
                     ))
                     Toggle(isOn: $settings.style.alwaysDark) {
                         Text("Always dark")
-                        Text("When off, the appmarks follow the system's light or dark appearance.")
+                        Text("When off, the bubbles follow the system's light or dark appearance.")
                     }
                     Toggle("Show fine-tuning", isOn: $showFineTuning)
                 }
@@ -128,7 +129,7 @@ private struct SettingsView: View {
     }
 
     @ViewBuilder private var fineTuning: some View {
-        Section("Appmarks") {
+        Section("Bubbles") {
             SliderRow("Preview height", $settings.style.switcherHeight, 16...120)
             SliderRow("Spacing", $settings.style.switcherSpacing, 0...30)
             SliderRow("Corner radius", $settings.style.switcherCornerRadius, 0...20)

@@ -2,9 +2,9 @@
 import PackageDescription
 
 let package = Package(
-    name: "Appmarks",
+    name: "Bubbleg",
     platforms: [.macOS(.v14)],
     targets: [
-        .executableTarget(name: "Appmarks", path: "Sources/Appmarks"),
+        .executableTarget(name: "Bubbleg", path: "Sources/Bubbleg"),
     ]
 )

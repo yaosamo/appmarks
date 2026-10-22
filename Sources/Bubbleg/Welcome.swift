@@ -41,7 +41,7 @@ enum Permission: CaseIterable {
         }
     }
 
-    /// Asking first adds Appmarks to the list in System Settings, so there is a switch to turn on.
+    /// Asking first adds Bubbleg to the list in System Settings, so there is a switch to turn on.
     func request() {
         switch self {
         case .accessibility:
@@ -68,16 +68,16 @@ private struct WelcomeView: View {
                     .font(.system(size: 34, weight: .regular))
                     .foregroundStyle(.secondary)
                     .padding(.bottom, 4)
-                Text("Welcome to Appmarks")
+                Text("Welcome to Bubbleg")
                     .font(.title.weight(.semibold))
-                Text("Appmarks keeps every open window one click away as a small preview. macOS needs your OK before it can do that.")
+                Text("Bubbleg keeps every open window one click away as a small preview. macOS needs your OK before it can do that.")
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
 
             VStack(spacing: 0) {
                 PermissionRow(title: "Accessibility",
-                              detail: "Lets Appmarks see your windows and bring one forward.",
+                              detail: "Lets Bubbleg see your windows and bring one forward.",
                               granted: accessibility) { Permission.accessibility.request() }
                 Divider().padding(.leading, 40)
                 PermissionRow(title: "Screen Recording",
@@ -88,8 +88,8 @@ private struct WelcomeView: View {
 
             HStack {
                 Text(allGranted
-                     ? "You're set. Appmarks is running in the menu bar."
-                     : "Turn on Appmarks in each list System Settings opens. After Screen Recording, macOS asks to quit and reopen Appmarks.")
+                     ? "You're set. Bubbleg is running in the menu bar."
+                     : "Turn on Bubbleg in each list System Settings opens. After Screen Recording, macOS asks to quit and reopen Bubbleg.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)

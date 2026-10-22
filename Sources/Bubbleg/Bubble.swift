@@ -15,21 +15,21 @@ struct SwitcherItem: Identifiable, Equatable {
     }
 }
 
-/// The appmark under the pointer, if any.
-final class AppmarkHover: ObservableObject {
+/// The bubble under the pointer, if any.
+final class BubbleHover: ObservableObject {
     @Published var hovered: CGWindowID?
 }
 
-/// The panel never becomes key, so without this the first click on an appmark would be swallowed.
+/// The panel never becomes key, so without this the first click on a bubble would be swallowed.
 final class FirstClickHostingView<Content: View>: NSHostingView<Content> {
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 }
 
-/// Where each appmark sits, at rest and with the one under the pointer grown to a `switcherHoverSize`
+/// Where each bubble sits, at rest and with the one under the pointer grown to a `switcherHoverSize`
 /// square. It grows away from the window, so the edge facing it stays put, and its neighbours slide
 /// aside rather than being covered; nothing follows the pointer. The panel is sized up front for the
-/// largest appmark grown, and `resting` is the box the appmarks fill at rest.
-struct AppmarkLayout {
+/// largest bubble grown, and `resting` is the box the bubbles fill at rest.
+struct BubbleLayout {
     let size: CGSize
     let resting: CGRect
     let backdropPadding: CGFloat
@@ -40,7 +40,7 @@ struct AppmarkLayout {
     private let growsTowardStart: Bool
     private let along: [CGFloat]
     private let across: [CGFloat]
-    /// Each appmark's length along the axis and thickness across it once hovered.
+    /// Each bubble's length along the axis and thickness across it once hovered.
     private let grownAlong: [CGFloat]
     private let grownAcross: [CGFloat]
     private let spacing: CGFloat
@@ -66,7 +66,7 @@ struct AppmarkLayout {
         let across = sizes.map { vertical ? $0.width : $0.height }
         self.along = along
         self.across = across
-        // Hovered, every appmark fills the box whatever its window's shape, and never shrinks.
+        // Hovered, every bubble fills the box whatever its window's shape, and never shrinks.
         let grown = sizes.map { CGSize(width: max($0.width, box), height: max($0.height, box)) }
         let grownAlong = grown.map { vertical ? $0.height : $0.width }
         let grownAcross = grown.map { vertical ? $0.width : $0.height }
@@ -74,9 +74,9 @@ struct AppmarkLayout {
         self.grownAcross = grownAcross
 
         let length = along.reduce(0, +) + spacing * CGFloat(max(along.count - 1, 0))
-        // An appmark grows around its centre, so half its growth lands on each side of the stack.
+        // A bubble grows around its centre, so half its growth lands on each side of the stack.
         let margin = (zip(grownAlong, along).map { $0 - $1 }.max() ?? 0) / 2
-        // Room for the backdrop, shadows and the icon badge that pokes out of an appmark's corner.
+        // Room for the backdrop, shadows and the icon badge that pokes out of a bubble's corner.
         let edge = backdropPadding + 10
         start = edge + margin
         let restingCross = across.max() ?? 0
@@ -88,8 +88,8 @@ struct AppmarkLayout {
                            : CGRect(x: start, y: crossStart, width: length, height: restingCross)
     }
 
-    /// Each appmark's frame in the panel (top-left origin), with `hovered` grown or all at rest. The
-    /// hovered appmark grows around its resting centre, so its neighbours slide aside by half each way.
+    /// Each bubble's frame in the panel (top-left origin), with `hovered` grown or all at rest. The
+    /// hovered bubble grows around its resting centre, so its neighbours slide aside by half each way.
     func frames(hovered: CGWindowID?) -> [CGRect] {
         let grown = hovered.flatMap { ids.firstIndex(of: $0) }
         var starts: [CGFloat] = []
@@ -114,7 +114,7 @@ struct AppmarkLayout {
         }
     }
 
-    /// The appmark under `point` as the appmarks are drawn now, with `hovered` grown; gaps go to the
+    /// The bubble under `point` as the bubbles are drawn now, with `hovered` grown; gaps go to the
     /// nearer side. Nil once the point leaves their outline.
     func item(at point: CGPoint, hovered: CGWindowID?) -> CGWindowID? {
         let frames = frames(hovered: hovered)
@@ -145,7 +145,7 @@ struct SwitcherChip: View {
         ZStack(alignment: .bottomTrailing) {
             Group {
                 if let thumbnail = item.thumbnail {
-                    // Fills the square a hovered appmark grows to, cropped rather than stretched.
+                    // Fills the square a hovered bubble grows to, cropped rather than stretched.
                     Image(nsImage: thumbnail).resizable().aspectRatio(contentMode: .fill)
                 } else {
                     RoundedRectangle(cornerRadius: style.switcherCornerRadius).fill(.regularMaterial)
