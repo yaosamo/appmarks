@@ -3,7 +3,7 @@ import AVFoundation
 import SwiftUI
 
 /// Where the floating appmarks rest: anywhere, on one of the screen's eight sticky points, or on a side
-/// of a window, which they then follow like the attached appmarks do.
+/// of a window, which they then follow around.
 enum WidgetAnchor: Equatable {
     /// The appmarks' top-left, in Accessibility coordinates, as a column or a row.
     case free(CGPoint, vertical: Bool)
@@ -19,6 +19,44 @@ enum WidgetAnchor: Equatable {
         case .screen(let spot): "screen \(spot)"
         case .window(let id, let side, _): "\(id) \(side)"
         }
+    }
+}
+
+/// One of the screen's eight sticky points, a corner or the middle of an edge; `.top`, `.right`,
+/// `.bottom` and `.left` also name a window's side.
+enum WindowSpot: String, CaseIterable {
+    case topLeft, top, topRight, right, bottomRight, bottom, bottomLeft, left
+
+    /// 0, 0.5 or 1 along each axis.
+    var unit: (x: Double, y: Double) {
+        switch self {
+        case .topLeft: (0, 0)
+        case .top: (0.5, 0)
+        case .topRight: (1, 0)
+        case .right: (1, 0.5)
+        case .bottomRight: (1, 1)
+        case .bottom: (0.5, 1)
+        case .bottomLeft: (0, 1)
+        case .left: (0, 0.5)
+        }
+    }
+    /// Stacked along the side they sit on: a column on the left and right, a row on the top and bottom.
+    var isVertical: Bool { unit.x != 0.5 }
+
+    /// The frame of something `size` big at this spot of `area`, `margin` in from its edges, in
+    /// top-left-origin coordinates.
+    func frame(_ size: CGSize, in area: CGRect, margin: CGFloat) -> CGRect {
+        let x: CGFloat = switch unit.x {
+        case 0: area.minX + margin
+        case 1: area.maxX - margin - size.width
+        default: area.midX - size.width / 2
+        }
+        let y: CGFloat = switch unit.y {
+        case 0: area.minY + margin
+        case 1: area.maxY - margin - size.height
+        default: area.midY - size.height / 2
+        }
+        return CGRect(origin: CGPoint(x: x, y: y), size: size)
     }
 }
 
@@ -85,7 +123,7 @@ final class WidgetPanel: NSPanel {
     private let onSelect: (CGWindowID) -> Void
     private let snapTargets: () -> [(id: CGWindowID, frame: CGRect)]
     private var style = Style()
-    private var layout = AppmarkLayout(items: [], style: Style())
+    private var layout = AppmarkLayout(items: [], style: Style(), vertical: false, growsTowardStart: false)
     private var anchor: WidgetAnchor
     private var placement: Placement?
     private var drag: Drag?
@@ -139,7 +177,9 @@ final class WidgetPanel: NSPanel {
         trackPointer()
     }
 
-    /// The host window moved or resized: glide after it, as `SwitcherPanel.follow` does.
+    /// The host window moved or resized. Apps report moves at their own pace, often 10–20 times a
+    /// second or only on release, while the window server has the real frame every refresh; follow that
+    /// until the window is still for 300ms and the appmarks have caught up.
     func follow() {
         guard case .window = anchor else { return }
         lastChange = Date()
@@ -195,7 +235,7 @@ final class WidgetPanel: NSPanel {
                              growsTowardStart: vertical ? body.midX > screen.midX : body.midY > screen.midY)
         case .screen(let spot):
             let vertical = isVertical(spot)
-            let body = spot.frame(bodySize(vertical: vertical), on: area(of: spot), inside: true, gap: Self.margin, inset: Self.margin)
+            let body = spot.frame(bodySize(vertical: vertical), in: area(of: spot), margin: Self.margin)
             return Placement(body: body, vertical: vertical, growsTowardStart: (vertical ? spot.unit.x : spot.unit.y) == 1)
         case .window(let id, let side, let offset):
             // Nothing else moves during a drag, and asking the window server right after moving the panel
@@ -354,8 +394,9 @@ final class WidgetPanel: NSPanel {
         return CGPoint(x: mouse.x - frame.minX, y: frame.maxY - mouse.y)
     }
 
-    /// As in `SwitcherPanel`: the clear room to grow belongs to the window underneath, so every move is
-    /// checked against the appmarks' outline rather than left to SwiftUI hover.
+    /// Most of the panel is clear room to grow, and the pointer over a clear pixel belongs to the window
+    /// underneath, so SwiftUI hover would miss it leaving. Every move is checked against the appmarks'
+    /// outline instead.
     private func trackPointer() {
         guard monitors.isEmpty else { return }
         let moved = { [weak self] in MainActor.assumeIsolated { self?.pointerMoved() } }
