@@ -11,6 +11,8 @@ rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS"
 cp .build/release/Appmarks "$APP/Contents/MacOS/"
 cp Info.plist "$APP/Contents/"
+mkdir -p "$APP/Contents/Resources"
+cp Resources/* "$APP/Contents/Resources/"
 
 IDENTITY="${APPMARKS_SIGN_IDENTITY:-$(security find-identity -v -p codesigning | awk -F'"' '/Apple Development|Developer ID/ {print $2; exit}')}"
 codesign --force --sign "${IDENTITY:--}" "$APP"

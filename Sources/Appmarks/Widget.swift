@@ -515,21 +515,24 @@ final class WidgetPanel: NSPanel {
     }
 }
 
-/// A short, dry tick for every snap, made here because macOS ships no plain click sound.
-/// It plays on its own queue: starting the audio output can take most of a second, which on the main
-/// thread froze the drag at the very moment of the snap.
+/// The click for every snap, `Resources/click.wav` in the app bundle. It plays on its own queue:
+/// starting the audio output can take most of a second, which on the main thread froze the drag at
+/// the very moment of the snap.
 private enum Click {
     private static let queue = DispatchQueue(label: "Appmarks.click", qos: .userInteractive)
     private static var player: AVAudioPlayer?
-    /// Silence on a loop, so the audio output, which sleeps when idle and takes up to half a second
-    /// to wake, is already running when the appmarks snap.
+    /// The click on a silent loop, so the audio output, which sleeps when idle and takes up to half a
+    /// second to wake, is already running when the appmarks snap.
     private static var silence: AVAudioPlayer?
 
     static func prepare() {
         queue.async {
-            player = try? AVAudioPlayer(data: wav)
+            guard let url = Bundle.main.url(forResource: "click", withExtension: "wav") else {
+                return Log.write("click.wav missing from the app bundle")
+            }
+            player = try? AVAudioPlayer(contentsOf: url)
             player?.prepareToPlay()
-            silence = try? AVAudioPlayer(data: wav)
+            silence = try? AVAudioPlayer(contentsOf: url)
             silence?.volume = 0
             silence?.numberOfLoops = -1
         }
@@ -548,28 +551,6 @@ private enum Click {
             player?.play()
         }
     }
-
-    private static let wav: Data = {
-        let rate = 44_100, count = rate * 15 / 1000
-        var samples = [Int16]()
-        var noise: UInt32 = 0x1234_5678
-        for i in 0..<count {
-            let t = Double(i) / Double(rate)
-            noise = noise &* 1_664_525 &+ 1_013_904_223
-            let hiss = Double(noise >> 8) / Double(1 << 24) * 2 - 1
-            let value = (sin(2 * .pi * 2_400 * t) * 0.7 + hiss * 0.3) * exp(-t / 0.0022)
-            samples.append(Int16(value * 0.6 * Double(Int16.max)))
-        }
-        var wav = Data()
-        func append<T: FixedWidthInteger>(_ value: T) { withUnsafeBytes(of: value.littleEndian) { wav.append(contentsOf: $0) } }
-        let bytes = UInt32(count * 2)
-        wav.append(contentsOf: Array("RIFF".utf8)); append(36 + bytes)
-        wav.append(contentsOf: Array("WAVEfmt ".utf8)); append(UInt32(16)); append(UInt16(1)); append(UInt16(1))
-        append(UInt32(rate)); append(UInt32(rate * 2)); append(UInt16(2)); append(UInt16(16))
-        wav.append(contentsOf: Array("data".utf8)); append(bytes)
-        samples.forEach(append)
-        return wav
-    }()
 }
 
 private struct WidgetView: View {
