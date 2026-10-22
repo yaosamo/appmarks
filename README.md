@@ -33,7 +33,7 @@ On first launch a welcome window walks through the two permissions: **Accessibil
 1. Bump `CFBundleShortVersionString` (and `CFBundleVersion`) in `Info.plist`.
 2. Open `Bubbleg.xcodeproj` → **Product → Archive**.
 3. In the Organizer: **Distribute App → Direct Distribution**. Xcode signs it with your cloud-managed Developer ID certificate, notarizes it and exports a stapled `Bubbleg.app`.
-4. Wrap it in a drag-to-Applications disk image as `site/Bubbleg.dmg` and push; the site's **Download** button (and `/download`) serve that file. The image is built with [dmgbuild](https://github.com/dmgbuild/dmgbuild): the app on the left, an Applications shortcut on the right, a pink arrow between them.
+4. Wrap it in the drag-to-Applications disk image: `dmg/make.sh path/to/Bubbleg.app` (needs [dmgbuild](https://github.com/dmgbuild/dmgbuild): `pipx install dmgbuild`). It writes `site/Bubbleg.dmg`: the app on the left, an Applications shortcut on the right, a pink arrow and a short hint between them. Push, and the site's **Download** button (and `/download`) serve it.
 
 The app isn't sandboxed, since reading and focusing other apps' windows through Accessibility isn't allowed in the sandbox, so it ships with Developer ID rather than through the App Store. The hardened runtime is on, as notarization requires.
 
