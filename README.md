@@ -26,6 +26,17 @@ open build/Appmarks.app
 
 On first launch a welcome window walks through the two permissions: **Accessibility** (to see and focus windows) and **Screen Recording** (for live thumbnails). Each row opens the right System Settings pane and ticks itself once granted; macOS asks to reopen Appmarks after Screen Recording. Menu bar icon → **Permissions…** brings the window back. Signing with your Apple Development identity keeps those grants across rebuilds.
 
+## Distribute
+
+`Appmarks.xcodeproj` builds the same sources for release. It is generated from `project.yml` with [XcodeGen](https://github.com/yonaskolb/XcodeGen); run `xcodegen` after adding or removing source files.
+
+1. Bump `CFBundleShortVersionString` (and `CFBundleVersion`) in `Info.plist`.
+2. Open `Appmarks.xcodeproj` → **Product → Archive**.
+3. In the Organizer: **Distribute App → Direct Distribution**. Xcode signs it with a Developer ID certificate (creating one the first time), notarizes it and exports `Appmarks.app`.
+4. Zip it as `Appmarks.zip` and attach it to a new [GitHub release](https://github.com/yaosamo/appmarks/releases); the site's **Download** button points at the latest release's `Appmarks.zip`.
+
+The app isn't sandboxed, since reading and focusing other apps' windows through Accessibility isn't allowed in the sandbox, so it ships with Developer ID rather than through the App Store. The hardened runtime is on, as notarization requires.
+
 ## Limits
 
 - Primary display only.

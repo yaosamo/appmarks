@@ -1,0 +1,44 @@
+# XcodeGen spec for Appmarks.xcodeproj, the project for archiving and distributing the app.
+# After adding or removing files, regenerate it: `xcodegen` in this folder.
+# Package.swift and build.sh stay for quick command-line builds of the same sources.
+name: Appmarks
+options:
+  bundleIdPrefix: com.yaric
+  deploymentTarget:
+    macOS: "14.0"
+settings:
+  base:
+    DEVELOPMENT_TEAM: 6J57A4298A
+    CODE_SIGN_STYLE: Automatic
+    SWIFT_VERSION: "5.0"
+    SWIFT_STRICT_CONCURRENCY: minimal
+targets:
+  Appmarks:
+    type: application
+    platform: macOS
+    sources:
+      - path: Sources/Appmarks
+      - path: Resources
+        buildPhase: resources
+    settings:
+      base:
+        PRODUCT_NAME: Appmarks
+        PRODUCT_BUNDLE_IDENTIFIER: com.yaric.appmarks
+        # Info.plist carries the version (CFBundleShortVersionString, CFBundleVersion).
+        INFOPLIST_FILE: Info.plist
+        GENERATE_INFOPLIST_FILE: NO
+        # Not sandboxed: moving and reading other apps' windows through Accessibility isn't
+        # allowed in the sandbox, so Appmarks ships with Developer ID, outside the App Store.
+        ENABLE_APP_SANDBOX: NO
+        # Notarization requires the hardened runtime.
+        ENABLE_HARDENED_RUNTIME: YES
+        COMBINE_HIDPI_IMAGES: YES
+schemes:
+  Appmarks:
+    build:
+      targets:
+        Appmarks: all
+    run:
+      config: Debug
+    archive:
+      config: Release
