@@ -3,18 +3,17 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Appmarks</title>
-  <meta name="description" content="A personal Stage Manager for your Mac. Windows you're not using wait as thumbnails at the edge of the screen." />
+  <title>Appmarks: a better way to switch between windows on your Mac. Free.</title>
+  <meta name="description" content="A free Mac app for switching between windows. Every open window is a small appmark you can click, drag anywhere or snap onto the window you're in." />
   <meta property="og:title" content="Appmarks" />
-  <meta property="og:description" content="A personal Stage Manager for your Mac." />
+  <meta property="og:description" content="A free, better way to switch between windows on your Mac." />
   <meta property="og:type" content="website" />
   <meta name="twitter:card" content="summary" />
   <meta name="twitter:creator" content="@yaosamo" />
   <link rel="icon" href="icon.png" type="image/png" />
-  <link rel="apple-touch-icon" href="apple-touch-icon.png" />
-  <style>
+  <link rel="apple-touch-icon" href="apple-touch-icon.png" />  <style>
     :root {
-      --ground: #E8EBF0;
+      --ground: #FFFFFF;
       --ink: #191C22;
       --quiet: #5E6573;
       --line: rgba(25, 28, 34, 0.12);
@@ -24,8 +23,8 @@
       --window: #FFFFFF;
       --parked: #FFFFFF;
       --mark: #F2B33D;
-      --button: #191C22;
-      --button-ink: #FFFFFF;
+      /* SF Pro Rounded: Safari reaches it as ui-rounded; elsewhere it falls back to plain SF. */
+      --rounded: ui-rounded, "SF Pro Rounded", system-ui, -apple-system, sans-serif;
       color-scheme: light;
     }
     @media (prefers-color-scheme: dark) {
@@ -39,8 +38,6 @@
         --stage: #1E222B;
         --window: #343A47;
         --parked: #343A47;
-        --button: #ECEEF2;
-        --button-ink: #14171D;
         color-scheme: dark;
       }
     }
@@ -62,7 +59,7 @@
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: clamp(20px, 3.5vh, 40px);
+      gap: clamp(28px, 5vh, 56px);
       height: 100svh;
       padding: clamp(24px, 4.5vh, 56px) clamp(16px, 4vw, 56px);
     }
@@ -72,30 +69,66 @@
       flex-direction: column;
       align-items: center;
       text-align: center;
-      max-width: 40rem;
+      max-width: 60rem;
+    }
+    .icon {
+      width: 144px;
+      height: 144px;
+      margin: 0 0 28px;
+      filter: drop-shadow(0 16px 28px rgba(21, 26, 36, 0.28));
     }
     h1 {
-      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", sans-serif;
-      font-size: 40px;
-      line-height: 1.05;
-      font-weight: 700;
-      letter-spacing: -0.025em;
-      margin: 0 0 20px;
+      font-family: var(--rounded);
+      font-size: 56px;
+      line-height: 1.08;
+      font-weight: 600;
+      text-wrap: balance;
+      margin: 0 0 36px;
+    }
+    /* Two lines, broken between the phrases, where they fit; narrower, it balances on its own. */
+    @media (max-width: 900px) {
+      h1 { max-width: 15em; }
+      h1 .split { display: none; }
     }
 
+    /* Bubble gum, like the icon: a glossy pink pill with a highlight across its top. */
     .get {
-      display: inline-flex;
-      align-items: center;
-      gap: 10px;
-      padding: 11px 18px 11px 15px;
-      border-radius: 10px;
-      background: var(--button);
-      color: var(--button-ink);
-      font-weight: 600;
+      position: relative;
+      /* Its own stacking context, so the highlight can sit under the label but over the pink. */
+      isolation: isolate;
+      display: inline-block;
+      padding: 15px 32px;
+      border-radius: 999px;
+      background: linear-gradient(180deg, #FF94D1 0%, #FF62B6 55%, #F2409D 100%);
+      color: #FFFFFF;
+      font-family: var(--rounded);
+      font-weight: 700;
       text-decoration: none;
+      text-shadow: 0 1px 1px rgba(160, 20, 95, 0.45);
+      box-shadow:
+        inset 0 -4px 8px rgba(190, 20, 110, 0.35),
+        inset 0 1px 1px rgba(255, 255, 255, 0.8),
+        0 10px 24px rgba(242, 64, 157, 0.35),
+        0 2px 4px rgba(242, 64, 157, 0.3);
+      transition: transform 0.18s cubic-bezier(0.3, 1.6, 0.5, 1);
     }
-    .get svg { width: 18px; height: 18px; }
-    .get:hover { opacity: 0.88; }
+    .get::before {
+      content: "";
+      position: absolute;
+      top: 3px;
+      left: 12%;
+      right: 12%;
+      height: 42%;
+      z-index: -1;
+      border-radius: 999px;
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.6), rgba(255, 255, 255, 0));
+      pointer-events: none;
+    }
+    .get:hover { transform: scale(1.05); }
+    .get:active { transform: scale(0.96); }
+    @media (prefers-reduced-motion: reduce) {
+      .get { transition: none; }
+    }
     .get:focus-visible, a:focus-visible {
       outline: 2px solid var(--mark);
       outline-offset: 3px;
@@ -103,17 +136,21 @@
 
     /* Stage: the video, as large as the space left over allows. */
     .stage {
+      --chapters: 48px;
       flex: 1;
       min-height: 0;
       width: 100%;
       container-type: size;
       display: flex;
-      justify-content: center;
-      align-items: flex-start;
+      flex-direction: column;
+      align-items: center;
+      gap: 14px;
     }
     .screen {
       position: relative;
-      width: min(100cqw, calc(100cqh * 16 / 9), 1440px);
+      flex: none;
+      /* Leaves room underneath for the chapters. */
+      width: min(100cqw, calc((100cqh - var(--chapters)) * 16 / 9), 1440px);
       aspect-ratio: 16 / 9;
       border-radius: 14px;
       overflow: hidden;
@@ -211,28 +248,131 @@
       .sketch .parked { animation: none; }
     }
 
+    /* Chapters: a row of pills under the video; the one playing is tinted. */
+    .chapters {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 8px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+    .chapters button {
+      font: 500 14px/1 var(--rounded);
+      color: var(--ink);
+      background: rgba(25, 28, 34, 0.05);
+      border: 0;
+      border-radius: 999px;
+      padding: 9px 14px;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+    }
+    .chapters button span { color: var(--quiet); margin-right: 6px; font-variant-numeric: tabular-nums; }
+    .chapters button:hover { background: rgba(25, 28, 34, 0.09); }
+    .chapters button[aria-current="true"] { background: #FFE0F0; color: #B8156E; }
+    .chapters button[aria-current="true"] span { color: #E0479A; }
+    .chapters button:focus-visible { outline: 2px solid var(--mark); outline-offset: 2px; }
+    @media (prefers-color-scheme: dark) {
+      .chapters button { background: rgba(236, 238, 242, 0.08); }
+      .chapters button:hover { background: rgba(236, 238, 242, 0.14); }
+      .chapters button[aria-current="true"] { background: rgba(242, 64, 157, 0.22); color: #FFB3DA; }
+    }
+
+    .credit {
+      flex: none;
+      font-size: 13px;
+      color: var(--quiet);
+    }
+    .credit a { color: inherit; text-underline-offset: 2px; }
+    .credit a:hover { color: var(--ink); }
+
+    /* Appmarks to play with: the app's floating panel, sized as the app draws it (32px tall
+       previews 6px apart, a 5px backdrop, an 80px square on hover). Script places it. */
+    .appmarks {
+      position: fixed;
+      left: 0;
+      top: 0;
+      z-index: 10;
+      box-sizing: border-box;
+      display: flex;
+      justify-content: center;
+      gap: 6px;
+      padding: 5px;
+      border-radius: 9px;
+      background: rgba(255, 255, 255, 0.72);
+      -webkit-backdrop-filter: blur(20px) saturate(1.6);
+      backdrop-filter: blur(20px) saturate(1.6);
+      box-shadow: 0 0 0 1px rgba(25, 28, 34, 0.08), 0 8px 24px rgba(25, 28, 34, 0.14);
+      cursor: grab;
+      touch-action: none;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    .appmarks.vertical { flex-direction: column; }
+    .appmarks.grow-end { align-items: flex-start; }
+    .appmarks.grow-start { align-items: flex-end; }
+    .appmarks.dragging { cursor: grabbing; }
+    /* With the pointer inside, the panel opens once to the room an appmark grown to the 80px
+       square needs, and holds that shape until the pointer leaves; inside it, the appmark under
+       the pointer grows and the others slide aside. Script sets the sizes and the .hovered one. */
+    .appmarks {
+      transition: width 0.24s cubic-bezier(0.2, 0.8, 0.2, 1), height 0.24s cubic-bezier(0.2, 0.8, 0.2, 1);
+    }
+    .appmarks.gliding {
+      transition: left 0.12s ease-out, top 0.12s ease-out,
+        width 0.24s cubic-bezier(0.2, 0.8, 0.2, 1), height 0.24s cubic-bezier(0.2, 0.8, 0.2, 1);
+    }
+    .appmark {
+      flex: none;
+      width: var(--w);
+      height: 32px;
+      border-radius: 5px;
+      overflow: hidden;
+      cursor: pointer;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3), 0 0 0 0.5px rgba(0, 0, 0, 0.15);
+      transition: width 0.24s cubic-bezier(0.2, 0.8, 0.2, 1), height 0.24s cubic-bezier(0.2, 0.8, 0.2, 1),
+        box-shadow 0.24s ease-out;
+    }
+    .appmark svg { display: block; width: 100%; height: 100%; }
+    .appmark.focused { outline: 2px solid #F2409D; outline-offset: -2px; }
+    .appmark.hovered {
+      width: max(var(--w), 80px);
+      height: 80px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25), 0 0 0 0.5px rgba(0, 0, 0, 0.15);
+    }
+    .appmarks.dragging .appmark { cursor: grabbing; }
+    @media (prefers-color-scheme: dark) {
+      .appmarks { background: rgba(40, 42, 50, 0.72); box-shadow: 0 0 0 1px rgba(236, 238, 242, 0.1), 0 8px 24px rgba(0, 0, 0, 0.4); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .appmark, .appmarks, .appmarks.gliding { transition: none; }
+    }
+    /* A Mac thing: pointer and hover. */
+    @media (max-width: 700px), (hover: none) {
+      .appmarks { display: none; }
+    }
+
     /* Phones: a normal scrolling column; the video takes the full width. */
     @media (max-width: 700px) {
       .page { height: auto; gap: 32px; padding: 40px 16px 48px; }
       .stage { flex: none; container-type: normal; }
       .screen { width: 100%; }
-      h1 { font-size: 36px; }
+      h1 { font-size: 40px; }
     }
   </style>
 </head>
 <body>
   <main class="page">
     <section class="intro">
-      <h1>Appmarks</h1>
-      <a class="get" href="/download">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v12"/><path d="m6 11 6 6 6-6"/><path d="M5 20h14"/></svg>
-        Download for Mac
-      </a>
+      <img class="icon" src="icon.png" alt="Appmarks" width="144" height="144" />
+      <h1>A better way to switch windows<br class="split" /> on&nbsp;Mac and it's&nbsp;free!</h1>
+      <a class="get" href="/download">Download for Mac</a>
     </section>
 
     <section class="stage" aria-label="Demo">
       <div class="screen has-video muted" id="screen">
-        <video id="demo" autoplay muted loop playsinline preload="auto" poster="demo-poster.jpg" aria-label="Appmarks parking and bringing back windows">
+        <video id="demo" autoplay muted loop playsinline preload="auto" poster="demo-poster.jpg" aria-label="Switching between windows with Appmarks">
           <source src="demo-av1.mp4" type='video/mp4; codecs="av01.0.09M.10"' />
           <source src="demo.mp4" type="video/mp4" />
         </video>
@@ -248,8 +388,91 @@
           <div class="parked"></div>
         </div>
       </div>
+      <ol class="chapters" aria-label="Chapters">
+        <li><button type="button" data-start="0"><span>0:00</span>The problem</button></li>
+        <li><button type="button" data-start="98"><span>1:38</span>All your windows</button></li>
+        <li><button type="button" data-start="121"><span>2:01</span>Snap to any window</button></li>
+        <li><button type="button" data-start="160"><span>2:40</span>Settings</button></li>
+      </ol>
     </section>
+
+    <footer class="credit">Designed by <a href="https://yaosamo.com">yaosamo.com</a></footer>
   </main>
+
+  <!-- Drawn windows rather than screenshots: crisp at any size, and nothing private in them. -->
+  <div class="appmarks" id="appmarks" aria-hidden="true" title="Drag me around">
+    <div class="appmark focused" style="--w: 51px">
+      <svg viewBox="0 0 160 100" preserveAspectRatio="xMidYMid slice">
+        <defs><linearGradient id="am-hero" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FFB3DE"/><stop offset="1" stop-color="#A78BFA"/></linearGradient></defs>
+        <rect width="160" height="100" fill="#FFFFFF"/>
+        <rect width="160" height="14" fill="#F1F1F4"/>
+        <circle cx="8" cy="7" r="2.2" fill="#FF5F57"/><circle cx="15" cy="7" r="2.2" fill="#FEBC2E"/><circle cx="22" cy="7" r="2.2" fill="#28C840"/>
+        <rect x="52" y="4" width="56" height="6" rx="3" fill="#E2E2E8"/>
+        <rect x="48" y="23" width="64" height="8" rx="2" fill="#1D1D1F"/>
+        <rect x="58" y="35" width="44" height="4" rx="2" fill="#86868B"/>
+        <rect x="61" y="44" width="17" height="7" rx="3.5" fill="#0071E3"/>
+        <rect x="82.5" y="44.5" width="16" height="6" rx="3" fill="none" stroke="#0071E3"/>
+        <rect x="40" y="58" width="80" height="42" rx="5" fill="url(#am-hero)"/>
+      </svg>
+    </div>
+    <div class="appmark" style="--w: 48px">
+      <svg viewBox="0 0 150 100" preserveAspectRatio="xMidYMid slice">
+        <rect width="150" height="100" fill="#FFFFFF"/>
+        <rect width="44" height="100" fill="#EDEDF1"/>
+        <rect x="44" width="106" height="14" fill="#F7F7F9"/>
+        <circle cx="8" cy="7" r="2.2" fill="#FF5F57"/><circle cx="15" cy="7" r="2.2" fill="#FEBC2E"/><circle cx="22" cy="7" r="2.2" fill="#28C840"/>
+        <rect x="56" y="5" width="30" height="4" rx="2" fill="#C7C7CE"/>
+        <rect x="4" y="28" width="36" height="8" rx="3" fill="#DCDCE2"/>
+        <g fill="#C7C7CE"><rect x="8" y="21" width="24" height="4" rx="2"/><rect x="8" y="30" width="28" height="4" rx="2"/><rect x="8" y="39" width="20" height="4" rx="2"/><rect x="8" y="48" width="26" height="4" rx="2"/><rect x="8" y="57" width="22" height="4" rx="2"/><rect x="8" y="66" width="18" height="4" rx="2"/></g>
+        <g fill="#5AB0F5"><rect x="52" y="21" width="8" height="6" rx="1.5"/><rect x="52" y="31" width="8" height="6" rx="1.5"/><rect x="52" y="41" width="8" height="6" rx="1.5"/><rect x="52" y="51" width="8" height="6" rx="1.5"/><rect x="52" y="61" width="8" height="6" rx="1.5"/><rect x="52" y="71" width="8" height="6" rx="1.5"/><rect x="52" y="81" width="8" height="6" rx="1.5"/></g>
+        <g fill="#B9B9C1"><rect x="64" y="22" width="46" height="4" rx="2"/><rect x="64" y="32" width="38" height="4" rx="2"/><rect x="64" y="42" width="54" height="4" rx="2"/><rect x="64" y="52" width="34" height="4" rx="2"/><rect x="64" y="62" width="48" height="4" rx="2"/><rect x="64" y="72" width="40" height="4" rx="2"/><rect x="64" y="82" width="52" height="4" rx="2"/></g>
+      </svg>
+    </div>
+    <div class="appmark" style="--w: 45px">
+      <svg viewBox="0 0 140 100" preserveAspectRatio="xMidYMid slice">
+        <rect width="140" height="100" fill="#1E1F25"/>
+        <rect width="140" height="14" fill="#2A2B32"/>
+        <circle cx="8" cy="7" r="2.2" fill="#FF5F57"/><circle cx="15" cy="7" r="2.2" fill="#FEBC2E"/><circle cx="22" cy="7" r="2.2" fill="#28C840"/>
+        <rect x="10" y="22" width="22" height="4" rx="2" fill="#C678DD"/><rect x="35" y="22" width="34" height="4" rx="2" fill="#61AFEF"/>
+        <rect x="18" y="30" width="28" height="4" rx="2" fill="#E5C07B"/><rect x="49" y="30" width="40" height="4" rx="2" fill="#ABB2BF"/>
+        <rect x="18" y="38" width="16" height="4" rx="2" fill="#C678DD"/><rect x="37" y="38" width="52" height="4" rx="2" fill="#98C379"/>
+        <rect x="26" y="46" width="44" height="4" rx="2" fill="#ABB2BF"/><rect x="73" y="46" width="22" height="4" rx="2" fill="#D19A66"/>
+        <rect x="26" y="54" width="30" height="4" rx="2" fill="#61AFEF"/><rect x="59" y="54" width="36" height="4" rx="2" fill="#ABB2BF"/>
+        <rect x="18" y="62" width="10" height="4" rx="2" fill="#ABB2BF"/>
+        <rect x="10" y="70" width="10" height="4" rx="2" fill="#ABB2BF"/>
+        <rect x="10" y="82" width="30" height="4" rx="2" fill="#5C6370"/><rect x="43" y="82" width="46" height="4" rx="2" fill="#5C6370"/>
+      </svg>
+    </div>
+    <div class="appmark" style="--w: 29px">
+      <svg viewBox="0 0 90 100" preserveAspectRatio="xMidYMid slice">
+        <rect width="90" height="100" fill="#F2F2F5"/>
+        <rect width="90" height="14" fill="#E9E9EE"/>
+        <circle cx="8" cy="7" r="2.2" fill="#FF5F57"/><circle cx="15" cy="7" r="2.2" fill="#FEBC2E"/><circle cx="22" cy="7" r="2.2" fill="#28C840"/>
+        <rect x="6" y="20" width="78" height="74" rx="5" fill="#FFFFFF"/>
+        <g fill="#9A9AA2"><rect x="12" y="27" width="18" height="3" rx="1.5"/><rect x="12" y="41" width="14" height="3" rx="1.5"/><rect x="12" y="55" width="20" height="3" rx="1.5"/><rect x="12" y="70" width="16" height="3" rx="1.5"/><rect x="12" y="83" width="12" height="3" rx="1.5"/></g>
+        <g fill="#D1D1D6"><rect x="36" y="27.5" width="42" height="2" rx="1"/><rect x="36" y="41.5" width="42" height="2" rx="1"/><rect x="36" y="55.5" width="42" height="2" rx="1"/></g>
+        <g fill="#0A84FF"><rect x="36" y="27.5" width="14" height="2" rx="1"/><rect x="36" y="41.5" width="26" height="2" rx="1"/><rect x="36" y="55.5" width="8" height="2" rx="1"/></g>
+        <g fill="#FFFFFF" stroke="#C7C7CC" stroke-width="0.8"><circle cx="50" cy="28.5" r="3.2"/><circle cx="62" cy="42.5" r="3.2"/><circle cx="44" cy="56.5" r="3.2"/></g>
+        <rect x="64" y="67.5" width="14" height="8" rx="4" fill="#34C759"/><circle cx="74" cy="71.5" r="3" fill="#FFFFFF"/>
+        <rect x="64" y="80.5" width="14" height="8" rx="4" fill="#34C759"/><circle cx="74" cy="84.5" r="3" fill="#FFFFFF"/>
+      </svg>
+    </div>
+    <div class="appmark" style="--w: 48px">
+      <svg viewBox="0 0 150 100" preserveAspectRatio="xMidYMid slice">
+        <defs>
+          <linearGradient id="am-sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8EC5FF"/><stop offset="0.6" stop-color="#FFC2DF"/><stop offset="1" stop-color="#FFD9A8"/></linearGradient>
+          <linearGradient id="am-hill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#C084FC"/><stop offset="1" stop-color="#7C3AED"/></linearGradient>
+        </defs>
+        <rect width="150" height="100" fill="url(#am-sky)"/>
+        <circle cx="104" cy="52" r="14" fill="#FFF3C4"/>
+        <path d="M0 74 Q30 54 62 70 T150 64 V100 H0 Z" fill="url(#am-hill)" opacity="0.75"/>
+        <path d="M0 86 Q40 70 84 84 T150 80 V100 H0 Z" fill="#6D28D9"/>
+        <rect width="150" height="14" fill="#FFFFFF" opacity="0.85"/>
+        <circle cx="8" cy="7" r="2.2" fill="#FF5F57"/><circle cx="15" cy="7" r="2.2" fill="#FEBC2E"/><circle cx="22" cy="7" r="2.2" fill="#28C840"/>
+      </svg>
+    </div>
+  </div>
+
   <script>
     // The browser takes the AV1 file when it can decode it, else the H.264 one. If neither
     // plays, the last source errors and the sketch takes the video's place.
@@ -258,8 +481,10 @@
       .addEventListener("error", () => screen.classList.remove("has-video"));
 
     // A click on the muted video (or the hint) turns sound on and hands over to the native
-    // controls, so it can be paused and scrubbed from then on.
+    // controls, so it can be paused and scrubbed from then on. Sound starts at 30%, since the
+    // voice is mastered loud; the controls' slider takes it from there. iOS ignores `volume`.
     const demo = document.getElementById("demo");
+    demo.volume = 0.3;
     function listen(event) {
       if (!screen.classList.contains("muted")) return;
       event.preventDefault();
@@ -270,6 +495,296 @@
     }
     demo.addEventListener("click", listen);
     document.getElementById("sound").addEventListener("click", listen);
+
+    // Chapters jump the video and keep it playing, muted or not; the one playing is marked.
+    const chapters = [...document.querySelectorAll(".chapters button")];
+    for (const button of chapters) {
+      button.addEventListener("click", () => {
+        demo.currentTime = Number(button.dataset.start);
+        demo.play();
+      });
+    }
+    demo.addEventListener("timeupdate", () => {
+      const current = chapters.findLast(button => demo.currentTime >= Number(button.dataset.start));
+      for (const button of chapters) button.setAttribute("aria-current", String(button === current));
+    });
+
+    // Appmarks to play with, by the app's own rules (Widget.swift): drag the panel anywhere; it
+    // clicks onto the viewport's corners and edge middles, and onto a side of the video, which it
+    // then slides along, and comes free once pulled 64px away. Near a left or right edge it turns
+    // into a column, near the top or bottom into a row. Clicking an appmark only moves the ring.
+    (() => {
+      const panel = document.getElementById("appmarks");
+      if (matchMedia("(max-width: 700px), (hover: none)").matches) return panel.remove();
+      const items = [...panel.children];
+      const widths = items.map(item => parseFloat(item.style.getPropertyValue("--w")));
+      const HEIGHT = 32, SPACING = 6, PADDING = 5;
+      const MARGIN = 16, POINT_REACH = 40, EDGE_REACH = 24, TURN_REACH = 120, RELEASE = 64, WINDOW_GAP = 8;
+      const SPOTS = {
+        topLeft: [0, 0], top: [0.5, 0], topRight: [1, 0], right: [1, 0.5],
+        bottomRight: [1, 1], bottom: [0.5, 1], bottomLeft: [0, 1], left: [0, 0.5],
+      };
+      const SIDES = ["top", "right", "bottom", "left"];
+      let anchor = { type: "window", side: "left", offset: 0.5 };
+      let vertical = true;
+      let placed = null;
+      let mode = "";
+      let drag = null;
+      let open = false;
+      let hovered = null;
+      const GROWN = 80;
+
+      // The shape while the pointer is inside: room across for the 80px square, and along for
+      // the one appmark that grows the most, so moving between appmarks never resizes it.
+      function openSize(isVertical) {
+        const rest = bodySize(isVertical);
+        const growth = isVertical ? GROWN - HEIGHT : Math.max(...widths.map(w => Math.max(GROWN - w, 0)));
+        return isVertical ? { w: GROWN + 2 * PADDING, h: rest.h + growth } : { w: rest.w + growth, h: GROWN + 2 * PADDING };
+      }
+
+      function setOpen(next) {
+        if (open === next) return;
+        open = next;
+        if (!open) setHovered(null);
+        apply(resolve(anchor), false);
+      }
+
+      function setHovered(item) {
+        if (hovered === item) return;
+        hovered?.classList.remove("hovered");
+        hovered = item;
+        hovered?.classList.add("hovered");
+      }
+
+      // The appmark nearest the pointer along the stack, so the gaps between them belong to the
+      // nearer one and crossing a gap doesn't shrink and regrow anything.
+      function nearestItem(event) {
+        const at = vertical ? event.clientY : event.clientX;
+        let best = null, bestDistance = Infinity;
+        for (const item of items) {
+          const r = item.getBoundingClientRect();
+          const [start, end] = vertical ? [r.top, r.bottom] : [r.left, r.right];
+          const d = Math.max(start - at, 0, at - end);
+          if (d < bestDistance) { best = item; bestDistance = d; }
+        }
+        return best;
+      }
+
+      const clamp = (v, lo, hi) => Math.min(Math.max(v, lo), hi);
+      const viewport = () => ({ x: 0, y: 0, w: innerWidth, h: innerHeight });
+      const video = () => {
+        const r = document.getElementById("screen").getBoundingClientRect();
+        return { x: r.left, y: r.top, w: r.width, h: r.height };
+      };
+
+      // The resting appmarks and their backdrop: what snaps, as opposed to room to grow on hover.
+      function bodySize(isVertical) {
+        const along = isVertical ? items.length * HEIGHT : widths.reduce((a, b) => a + b, 0);
+        const length = along + SPACING * (items.length - 1) + 2 * PADDING;
+        const across = (isVertical ? Math.max(...widths) : HEIGHT) + 2 * PADDING;
+        return isVertical ? { w: across, h: length } : { w: length, h: across };
+      }
+
+      // A column on the left and right middles, a row on the top and bottom; a corner keeps either.
+      const spotVertical = spot => SPOTS[spot][0] === 0.5 ? false : SPOTS[spot][1] === 0.5 ? true : vertical;
+      const pointOf = spot => ({ x: innerWidth * SPOTS[spot][0], y: innerHeight * SPOTS[spot][1] });
+
+      // Outside `side` of the video, `offset` of the way along it; inside, when there's no room out.
+      function onVideo(side, offset) {
+        const v = video(), isVertical = side === "left" || side === "right";
+        const size = bodySize(isVertical), screen = viewport();
+        const [start, length, own] = isVertical ? [v.y, v.h, size.h] : [v.x, v.w, size.w];
+        let along = start + (length - own) * (own > length ? 0.5 : clamp(offset, 0, 1));
+        along = clamp(along, 0, (isVertical ? screen.h : screen.w) - own);
+        const before = side === "left" || side === "top";
+        const [edgeMin, edgeMax, thickness] = isVertical ? [v.x, v.x + v.w, size.w] : [v.y, v.y + v.h, size.h];
+        const outside = before ? edgeMin - WINDOW_GAP - thickness : edgeMax + WINDOW_GAP;
+        const fits = outside >= 0 && outside + thickness <= (isVertical ? screen.w : screen.h);
+        const across = fits ? outside : before ? edgeMin + WINDOW_GAP : edgeMax - WINDOW_GAP - thickness;
+        const body = isVertical ? { x: across, y: along, ...size } : { x: along, y: across, ...size };
+        // Hovered appmarks grow away from the video outside it, and into it when inside.
+        return { body, vertical: isVertical, growStart: before === fits };
+      }
+
+      function resolve(a) {
+        if (a.type === "screen") {
+          const isVertical = spotVertical(a.spot), size = bodySize(isVertical), [ux, uy] = SPOTS[a.spot];
+          const x = ux === 0 ? MARGIN : ux === 1 ? innerWidth - MARGIN - size.w : (innerWidth - size.w) / 2;
+          const y = uy === 0 ? MARGIN : uy === 1 ? innerHeight - MARGIN - size.h : (innerHeight - size.h) / 2;
+          return { body: { x, y, ...size }, vertical: isVertical, growStart: (isVertical ? ux : uy) === 1 };
+        }
+        if (a.type === "window") return onVideo(a.side, a.offset);
+        const size = bodySize(a.vertical);
+        const body = {
+          x: clamp(a.x, 0, innerWidth - size.w), y: clamp(a.y, 0, innerHeight - size.h), ...size,
+        };
+        // Free, they grow toward the middle of the screen.
+        const growStart = a.vertical ? body.x + body.w / 2 > innerWidth / 2 : body.y + body.h / 2 > innerHeight / 2;
+        return { body, vertical: a.vertical, growStart };
+      }
+
+      // Pinned by the edge the appmarks grow away from, and centred along their length, so a
+      // hovered one grows outward and both ways along the stack, as in the app.
+      function apply(p, glide) {
+        placed = p;
+        vertical = p.vertical;
+        const { x, y, w, h } = p.body;
+        const size = open ? openSize(p.vertical) : { w, h };
+        // Opened, the centre moves in just enough to keep the longer panel on screen.
+        const centre = (start, length, room, opened) => clamp(start + length / 2, opened / 2, room - opened / 2);
+        let left, top, tx, ty;
+        if (p.vertical) {
+          [left, tx] = p.growStart ? [x + w, "-100%"] : [x, "0"];
+          [top, ty] = [centre(y, h, innerHeight, size.h), "-50%"];
+        } else {
+          [left, tx] = [centre(x, w, innerWidth, size.w), "-50%"];
+          [top, ty] = p.growStart ? [y + h, "-100%"] : [y, "0"];
+        }
+        panel.style.width = `${size.w}px`;
+        panel.style.height = `${size.h}px`;
+        const next = `${p.vertical} ${p.growStart}`;
+        panel.classList.toggle("gliding", glide && next === mode);
+        mode = next;
+        panel.classList.toggle("vertical", p.vertical);
+        panel.classList.toggle("grow-start", p.growStart);
+        panel.classList.toggle("grow-end", !p.growStart);
+        panel.style.left = `${left}px`;
+        panel.style.top = `${top}px`;
+        panel.style.transform = `translate(${tx}, ${ty})`;
+      }
+
+      // The appmarks under the pointer, as a row or a column, held where they were grabbed.
+      function freeBody(pointer, isVertical) {
+        const size = bodySize(isVertical);
+        const [fx, fy] = isVertical ? [drag.across, drag.along] : [drag.along, drag.across];
+        return { x: pointer.x - fx * size.w, y: pointer.y - fy * size.h, ...size };
+      }
+
+      const distance = (pt, r) =>
+        Math.hypot(Math.max(r.x - pt.x, 0, pt.x - r.x - r.w), Math.max(r.y - pt.y, 0, pt.y - r.y - r.h));
+
+      // How far along `side` of the video the appmarks would sit, if the pointer has them within reach.
+      function sideOffset(pointer, side, reach) {
+        const isVertical = side === "left" || side === "right";
+        const body = freeBody(pointer, isVertical), snapped = onVideo(side, 0).body, v = video();
+        const gap = isVertical ? Math.abs(body.x - snapped.x) : Math.abs(body.y - snapped.y);
+        const overlaps = isVertical ? body.y + body.h > v.y && body.y < v.y + v.h
+                                    : body.x + body.w > v.x && body.x < v.x + v.w;
+        if (gap >= reach || !overlaps) return null;
+        const [start, room] = isVertical ? [body.y - v.y, v.h - body.h] : [body.x - v.x, v.w - body.w];
+        return room > 0 ? clamp(start / room, 0, 1) : 0.5;
+      }
+
+      // Near a viewport edge they turn to lie along it; in a corner, the shape they have wins a near tie.
+      function facing(pointer) {
+        const side = Math.min(pointer.x, innerWidth - pointer.x);
+        const end = Math.min(pointer.y, innerHeight - pointer.y);
+        if (Math.min(side, end) >= TURN_REACH) return null;
+        return vertical ? side < end + 24 : side + 24 < end;
+      }
+
+      function target(pointer) {
+        if (anchor.type === "screen" && distance(pointOf(anchor.spot), freeBody(pointer, spotVertical(anchor.spot))) < RELEASE) {
+          return anchor;
+        }
+        if (anchor.type === "window") {
+          const offset = sideOffset(pointer, anchor.side, RELEASE);
+          if (offset !== null) return { type: "window", side: anchor.side, offset };
+        }
+        for (const spot in SPOTS) {
+          if (distance(pointOf(spot), freeBody(pointer, spotVertical(spot))) < POINT_REACH) return { type: "screen", spot };
+        }
+        for (const side of SIDES) {
+          const offset = sideOffset(pointer, side, EDGE_REACH);
+          if (offset !== null) return { type: "window", side, offset };
+        }
+        const isVertical = facing(pointer) ?? vertical;
+        const body = freeBody(pointer, isVertical);
+        return { type: "free", x: body.x, y: body.y, vertical: isVertical };
+      }
+
+      const snapOf = a => a.type === "screen" ? `screen ${a.spot}` : a.type === "window" ? `video ${a.side}` : null;
+
+      // The app's own click, decoded ahead so it plays the moment they snap. Browsers only start
+      // audio after a gesture, so the context resumes on the first press.
+      let audio, click;
+      function prepareSound() {
+        if (audio) return;
+        audio = new AudioContext();
+        fetch("click.wav").then(r => r.arrayBuffer()).then(data => audio.decodeAudioData(data))
+          .then(buffer => { click = buffer; }).catch(() => {});
+      }
+      function playClick() {
+        if (!click) return;
+        const source = audio.createBufferSource(), gain = audio.createGain();
+        source.buffer = click;
+        gain.gain.value = 0.6;
+        source.connect(gain).connect(audio.destination);
+        source.start();
+      }
+
+      panel.addEventListener("pointerenter", () => {
+        prepareSound();
+        if (!drag) setOpen(true);
+      });
+      panel.addEventListener("pointerleave", () => {
+        if (!drag) setOpen(false);
+      });
+      panel.addEventListener("pointerdown", event => {
+        if (event.button !== 0) return;
+        prepareSound();
+        audio.resume();
+        const { x, y, w, h } = placed.body;
+        const along = vertical ? (event.clientY - y) / h : (event.clientX - x) / w;
+        const across = vertical ? (event.clientX - x) / w : (event.clientY - y) / h;
+        // Noted now: with the pointer captured, the release reports the panel, not the appmark.
+        const item = event.target.closest(".appmark");
+        drag = { startX: event.clientX, startY: event.clientY, along: clamp(along, 0, 1), across: clamp(across, 0, 1), item, moved: false };
+        panel.setPointerCapture(event.pointerId);
+      });
+      panel.addEventListener("pointermove", event => {
+        if (!drag) {
+          if (open) setHovered(nearestItem(event));
+          return;
+        }
+        if (!drag.moved && Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY) < 3) return;
+        if (!drag.moved) {
+          // Dragged, the panel closes back to its resting shape, which is what snaps.
+          drag.moved = true;
+          panel.classList.add("dragging");
+          setOpen(false);
+        }
+        const next = target({ x: event.clientX, y: event.clientY });
+        const snap = snapOf(next);
+        if (snap && snap !== snapOf(anchor)) playClick();
+        anchor = next;
+        apply(resolve(anchor), snap !== null);
+      });
+      function release(event) {
+        if (!drag) return;
+        // A click only moves the selection ring; no windows to open here.
+        if (!drag.moved && drag.item) items.forEach(other => other.classList.toggle("focused", other === drag.item));
+        const dragged = drag.moved;
+        drag = null;
+        panel.classList.remove("dragging");
+        // Dropped with the pointer still on the appmarks, they open again under it.
+        if (dragged) {
+          const r = panel.getBoundingClientRect();
+          const inside = event.clientX >= r.left && event.clientX <= r.right && event.clientY >= r.top && event.clientY <= r.bottom;
+          setOpen(inside);
+          if (inside) setHovered(nearestItem(event));
+        }
+      }
+      panel.addEventListener("pointerup", release);
+      panel.addEventListener("pointercancel", release);
+
+      // Snapped to the video, they follow it as the page lays out, scrolls or resizes.
+      const follow = () => apply(resolve(anchor), false);
+      addEventListener("resize", follow);
+      addEventListener("scroll", follow, { passive: true });
+      new ResizeObserver(follow).observe(document.getElementById("screen"));
+      follow();
+    })();
   </script>
 </body>
 </html>
