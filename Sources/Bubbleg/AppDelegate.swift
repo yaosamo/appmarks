@@ -103,8 +103,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             string: "A better way to switch windows on your Mac, and it's free.\n",
             attributes: [.font: font, .foregroundColor: NSColor.secondaryLabelColor, .paragraphStyle: centered])
         credits.append(NSAttributedString(
-            string: "appmarks.yaosamo.com",
-            attributes: [.font: font, .link: URL(string: "https://appmarks.yaosamo.com")!, .paragraphStyle: centered]))
+            string: "bubbleg.yaosamo.com",
+            attributes: [.font: font, .link: URL(string: "https://bubbleg.yaosamo.com")!, .paragraphStyle: centered]))
         return credits
     }
 }
