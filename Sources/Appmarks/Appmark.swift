@@ -15,152 +15,14 @@ struct SwitcherItem: Identifiable, Equatable {
     }
 }
 
-final class SwitcherModel: ObservableObject {
-    @Published var items: [SwitcherItem] = []
-}
-
 /// The appmark under the pointer, if any.
 final class AppmarkHover: ObservableObject {
     @Published var hovered: CGWindowID?
 }
 
-/// Previews of the other windows on stage, pinned to a corner of the focused window. It follows focus
-/// rather than sitting on every window, since a window behind would cover its own copy anyway.
-final class SwitcherPanel: NSPanel {
-    private let host: NSView
-    private let model: SwitcherModel
-    private let hover = AppmarkHover()
-    private var monitors: [Any] = []
-    private var attachedID: CGWindowID = 0
-    private var placedFor = CGRect.null
-    private var style = Style()
-    private var layout = AppmarkLayout(items: [], style: Style())
-    private var link: CADisplayLink?
-    private var lastChange = Date.distantPast
-    /// Where the panel is heading, in screen coordinates; it eases there rather than jumping.
-    private var target = NSRect.zero
-
-    init(model: SwitcherModel, onSelect: @escaping (CGWindowID) -> Void) {
-        self.model = model
-        host = FirstClickHostingView(rootView: SwitcherView(model: model, hover: hover, onSelect: onSelect))
-        super.init(contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
-        collectionBehavior = [.ignoresCycle, .fullScreenAuxiliary]
-        backgroundColor = .clear
-        isOpaque = false
-        hasShadow = false
-        hidesOnDeactivate = false
-        acceptsMouseMovedEvents = true
-        contentView = host
-    }
-
-    override var canBecomeKey: Bool { false }
-    override var canBecomeMain: Bool { false }
-
-    /// `window` is the focused window's frame in Accessibility coordinates (top-left origin). Ordered
-    /// directly above that window at normal level, so windows in front of it also cover the switcher.
-    /// Showing up on a new window is instant; a move on the same window glides like `follow`.
-    func attach(to window: CGRect, id: CGWindowID, style: Style) {
-        layout = AppmarkLayout(items: model.items, style: style)
-        self.style = style
-        let glide = id == attachedID && isVisible
-        attachedID = id
-        place(window, glide: glide)
-        order(.above, relativeTo: Int(id))
-        trackPointer()
-    }
-
-    func isAttached(to id: CGWindowID, frame: CGRect, style: Style) -> Bool {
-        attachedID == id && placedFor == frame && self.style == style
-    }
-
-    /// Apps report moves at their own pace, often 10–20 times a second or only on release, while the
-    /// window server has the real frame every refresh; follow that until the window is still for 300ms
-    /// and the appmarks have caught up.
-    func follow() {
-        lastChange = Date()
-        startLink()
-    }
-
-    override func orderOut(_ sender: Any?) {
-        link?.invalidate()
-        link = nil
-        monitors.forEach(NSEvent.removeMonitor)
-        monitors = []
-        hover.hovered = nil
-        super.orderOut(sender)
-    }
-
-    /// Most of the panel is clear room to grow, and the pointer over a clear pixel belongs to the window
-    /// underneath, so SwiftUI hover would miss it leaving. Every move, wherever it goes, is checked
-    /// against the appmarks' current outline instead.
-    private func trackPointer() {
-        guard monitors.isEmpty else { return }
-        let moved = { [weak self] in MainActor.assumeIsolated { self?.pointerMoved() } }
-        monitors = [
-            NSEvent.addGlobalMonitorForEvents(matching: .mouseMoved) { _ in moved() },
-            NSEvent.addLocalMonitorForEvents(matching: .mouseMoved) { event in moved(); return event },
-        ].compactMap { $0 }
-    }
-
-    private func pointerMoved() {
-        let mouse = NSEvent.mouseLocation
-        let local = CGPoint(x: mouse.x - frame.minX, y: frame.maxY - mouse.y)
-        let hovered = layout.item(at: local, hovered: hover.hovered)
-        if hovered != hover.hovered { hover.hovered = hovered }
-    }
-
-    private func startLink() {
-        guard link == nil, isVisible else { return }
-        link = NSScreen.screens[0].displayLink(target: self, selector: #selector(tick))
-        link?.add(to: .main, forMode: .common)
-    }
-
-    @objc private func tick(_ link: CADisplayLink) {
-        guard let info = (CGWindowListCopyWindowInfo([.optionIncludingWindow], attachedID) as? [[String: Any]])?.first,
-              let bounds = info[kCGWindowBounds as String], let window = CGRect(dictionaryRepresentation: bounds as! CFDictionary)
-        else { return orderOut(nil) }
-        if window != placedFor {
-            place(window, glide: true)
-            lastChange = Date()
-        }
-        step(seconds: link.targetTimestamp - link.timestamp)
-        if frame.origin == target.origin, Date().timeIntervalSince(lastChange) > 0.3 {
-            link.invalidate()
-            self.link = nil
-        }
-    }
-
-    /// Eases toward the target, closing most of the gap in about 0.1s, so a window that lags or
-    /// jumps mid-drag pulls the appmarks along smoothly instead of teleporting them.
-    private func step(seconds: Double) {
-        let pull = 1 - exp(-max(seconds, 1 / 240) / 0.035)
-        var origin = frame.origin
-        origin.x += (target.minX - origin.x) * pull
-        origin.y += (target.minY - origin.y) * pull
-        if abs(target.minX - origin.x) < 0.5, abs(target.minY - origin.y) < 0.5 { origin = target.origin }
-        setFrame(NSRect(origin: origin, size: target.size), display: true)
-    }
-
-    private func place(_ window: CGRect, glide: Bool) {
-        placedFor = window
-        // The resting appmarks and their backdrop are what sits on the window; the rest is room to grow.
-        let pinned = layout.resting.insetBy(dx: -layout.backdropPadding, dy: -layout.backdropPadding)
-        var frame = style.switcherSpot.frame(pinned.size, on: window, inside: style.switcherInside,
-                                             gap: style.switcherOffsetX, inset: style.switcherOffsetY)
-        // Outside a window that touches a screen edge, the appmarks would otherwise hang off the screen.
-        let screen = Geometry.visibleArea
-        frame.origin.x = max(screen.minX, min(frame.minX, screen.maxX - frame.width))
-        frame.origin.y = max(screen.minY, min(frame.minY, screen.maxY - frame.height))
-        let panelTop = frame.minY - pinned.minY
-        let primaryHeight = NSScreen.screens[0].frame.height
-        target = NSRect(x: frame.minX - pinned.minX, y: primaryHeight - panelTop - layout.size.height,
-                        width: layout.size.width, height: layout.size.height)
-        if glide {
-            startLink()
-        } else {
-            setFrame(target, display: true)
-        }
-    }
+/// The panel never becomes key, so without this the first click on an appmark would be swallowed.
+final class FirstClickHostingView<Content: View>: NSHostingView<Content> {
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 }
 
 /// Where each appmark sits, at rest and with the one under the pointer grown to a `switcherHoverSize`
@@ -186,18 +48,12 @@ struct AppmarkLayout {
     /// Where the resting stack starts along its axis, in the panel.
     private let start: CGFloat
 
-    init(items: [SwitcherItem], style: Style) {
-        let spot = style.switcherSpot
-        self.init(items: items, style: style, vertical: spot.isVertical,
-                  growsTowardStart: ((spot.isVertical ? spot.unit.x : spot.unit.y) == 0) != style.switcherInside)
-    }
-
     init(items: [SwitcherItem], style: Style, vertical: Bool, growsTowardStart: Bool) {
         self.vertical = vertical
         self.growsTowardStart = growsTowardStart
         backdropPadding = style.switcherBackground ? 5 : 0
         cornerRadius = style.switcherCornerRadius
-        spacing = style.switcherSpacing * style.gapScale
+        spacing = style.switcherSpacing
         ids = items.map(\.id)
 
         let height = CGFloat(style.switcherHeight)
@@ -279,37 +135,6 @@ private extension CGRect {
     func maxEdge(vertical: Bool) -> CGFloat { vertical ? maxX : maxY }
 }
 
-private struct SwitcherView: View {
-    @ObservedObject var model: SwitcherModel
-    @ObservedObject var hover: AppmarkHover
-    @ObservedObject var settings = Settings.shared
-    let onSelect: (CGWindowID) -> Void
-
-    var body: some View {
-        let style = settings.style
-        let layout = AppmarkLayout(items: model.items, style: style)
-        let frames = layout.frames(hovered: hover.hovered)
-        let backdrop = layout.backdrop(frames)
-        ZStack(alignment: .topLeading) {
-            Group {
-                if style.switcherBackground {
-                    Backdrop(cornerRadius: layout.cornerRadius + 4)
-                        .overlay(RoundedRectangle(cornerRadius: layout.cornerRadius + 4).strokeBorder(.primary.opacity(0.1)))
-                }
-            }
-            .frame(width: backdrop.width, height: backdrop.height)
-            .offset(x: backdrop.minX, y: backdrop.minY)
-            ForEach(Array(zip(model.items, frames)), id: \.0.id) { item, frame in
-                SwitcherChip(item: item, style: style, size: frame.size)
-                    .offset(x: frame.minX, y: frame.minY)
-                    .onTapGesture { onSelect(item.id) }
-            }
-        }
-        .frame(width: layout.size.width, height: layout.size.height, alignment: .topLeading)
-        .animation(.spring(response: 0.2, dampingFraction: 0.9), value: hover.hovered)
-    }
-}
-
 struct SwitcherChip: View {
     let item: SwitcherItem
     let style: Style
@@ -331,7 +156,7 @@ struct SwitcherChip: View {
             .overlay(RoundedRectangle(cornerRadius: style.switcherCornerRadius)
                 .strokeBorder(item.isFocused ? Color.accentColor : .primary.opacity(0.15), lineWidth: item.isFocused ? 2 : 0.5))
             .shadow(color: .black.opacity(0.3), radius: 3, y: 1)
-            if style.showIcon, style.switcherShowIcon, let icon = item.icon {
+            if style.switcherShowIcon, let icon = item.icon {
                 Image(nsImage: icon).resizable()
                     .frame(width: badge, height: badge)
                     .offset(x: 4, y: 4)

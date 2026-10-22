@@ -1,34 +1,23 @@
 import AppKit
-import Carbon
 import Combine
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let manager = StageManager()
-    private lazy var interceptor = EventInterceptor(manager: manager)
     private let settingsWindow = SettingsWindow()
     private let welcomeWindow = WelcomeWindow()
     private var statusItem: NSStatusItem!
     private var toggleItem: NSMenuItem!
     private var desktopFilesItem: NSMenuItem!
     private var permissionTimer: Timer?
-    private var signalSources: [DispatchSourceSignal] = []
     private var subscriptions: Set<AnyCancellable> = []
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         buildMenu()
-        HotKey.register(keyCode: kVK_DownArrow, modifiers: controlKey | optionKey) { [weak self] in
-            self?.manager.sendFocusedToStrip()
-        }
-        restoreWindowsOnSignals()
         followAppearanceSetting()
         LaunchAtLogin.enableOnFirstLaunch()
         if !Permission.allGranted { welcomeWindow.show() }
         startWhenTrusted()
-    }
-
-    func applicationWillTerminate(_ notification: Notification) {
-        manager.stop()
     }
 
     /// The welcome window asks for the permissions; this only waits for Accessibility, then starts.
@@ -37,7 +26,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         Log.write("launch: accessibility=\(trusted)")
         if trusted {
             manager.start()
-            interceptor.start()
             updateMenu()
             return
         }
@@ -45,17 +33,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             guard AXIsProcessTrusted() else { return }
             timer.invalidate()
             MainActor.assumeIsolated { self?.startWhenTrusted() }
-        }
-    }
-
-    /// `kill` or Ctrl-C would otherwise skip applicationWillTerminate and leave windows parked off-screen.
-    private func restoreWindowsOnSignals() {
-        for sig in [SIGTERM, SIGINT, SIGHUP] {
-            signal(sig, SIG_IGN)
-            let source = DispatchSource.makeSignalSource(signal: sig, queue: .main)
-            source.setEventHandler { MainActor.assumeIsolated { NSApp.terminate(nil) } }
-            source.resume()
-            signalSources.append(source)
         }
     }
 
@@ -72,9 +49,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         toggleItem = NSMenuItem(title: "Pause", action: #selector(toggle), keyEquivalent: "")
         toggleItem.target = self
         menu.addItem(toggleItem)
-        let send = NSMenuItem(title: "Park Focused Window  ⌃⌥↓", action: #selector(sendToStrip), keyEquivalent: "")
-        send.target = self
-        menu.addItem(send)
         desktopFilesItem = NSMenuItem(title: "Hide Desktop Files", action: #selector(toggleDesktopFiles), keyEquivalent: "")
         desktopFilesItem.target = self
         menu.addItem(desktopFilesItem)
@@ -96,15 +70,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     private func updateMenu() {
-        toggleItem.title = manager.isActive ? "Pause (restore all windows)" : "Resume"
+        toggleItem.title = manager.isActive ? "Pause" : "Resume"
     }
 
     @objc private func toggle() {
         manager.isActive ? manager.stop() : manager.start()
         updateMenu()
     }
-
-    @objc private func sendToStrip() { manager.sendFocusedToStrip() }
 
     @objc private func toggleDesktopFiles() { DesktopFiles.setHidden(!DesktopFiles.isHidden) }
 

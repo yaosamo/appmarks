@@ -70,18 +70,18 @@ private struct WelcomeView: View {
                     .padding(.bottom, 4)
                 Text("Welcome to Appmarks")
                     .font(.title.weight(.semibold))
-                Text("Appmarks parks the windows you're not using at the edge of the screen. macOS needs your OK before it can do that.")
+                Text("Appmarks keeps every open window one click away as a small preview. macOS needs your OK before it can do that.")
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
 
             VStack(spacing: 0) {
                 PermissionRow(title: "Accessibility",
-                              detail: "Lets Appmarks move and park your windows.",
+                              detail: "Lets Appmarks see your windows and bring one forward.",
                               granted: accessibility) { Permission.accessibility.request() }
                 Divider().padding(.leading, 40)
                 PermissionRow(title: "Screen Recording",
-                              detail: "Shows a live picture of each parked window. Pictures stay on your Mac.",
+                              detail: "Shows a live picture of each window. Pictures stay on your Mac.",
                               granted: screenRecording) { Permission.screenRecording.request() }
             }
             .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 10))
