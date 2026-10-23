@@ -347,7 +347,7 @@
       .chapters button[aria-current="true"] { background: rgba(242, 64, 157, 0.22); color: #FFB3DA; }
     }
 
-    /* My other apps, above the credit: icon, name and what it is, three across. */
+    /* My other apps, at the bottom: icon, name and what it is, three across, under a credit-sized line. */
     .more-apps {
       width: min(100%, 760px);
       margin-top: 24px;
@@ -355,9 +355,8 @@
     }
     .more-apps h2 {
       margin: 0 0 16px;
-      font-family: var(--rounded);
-      font-size: 15px;
-      font-weight: 600;
+      font: inherit;
+      font-size: 13px;
       color: var(--quiet);
     }
     .more-apps ul {
@@ -389,13 +388,6 @@
       .more-apps ul { grid-template-columns: 1fr; }
     }
 
-    .credit {
-      flex: none;
-      font-size: 13px;
-      color: var(--quiet);
-    }
-    .credit a { color: inherit; text-underline-offset: 2px; }
-    .credit a:hover { color: var(--ink); }
 
     /* Bubbleg to play with: the app's floating panel, sized as the app draws it (32px tall
        previews 6px apart, a 5px backdrop, an 80px square on hover). Script places it. */
@@ -514,7 +506,6 @@
       </ul>
     </section>
 
-    <footer class="credit">Designed by <a href="https://yaosamo.com">yaosamo.com</a></footer>
   </main>
 
   <!-- Drawn windows rather than screenshots: crisp at any size, and nothing private in them. -->
