@@ -18,6 +18,8 @@ final class WelcomeWindow {
             window.titlebarAppearsTransparent = true
             window.titleVisibility = .hidden
             window.isReleasedWhenClosed = false
+            // Above System Settings too, so the steps stay in sight while turning the switches on.
+            window.level = .floating
             window.center()
             NotificationCenter.default.addObserver(forName: NSWindow.willCloseNotification, object: window, queue: .main) { [weak self] _ in
                 MainActor.assumeIsolated { self?.window = nil }

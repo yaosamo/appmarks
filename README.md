@@ -24,7 +24,7 @@ Menu bar icon → **Settings…** (⌘,):
 open build/Bubbleg.app
 ```
 
-On first launch a welcome window walks through the two permissions: **Accessibility** (to see and focus windows) and **Screen Recording** (for live thumbnails). Each row opens the right System Settings pane and ticks itself once granted; macOS asks to reopen Bubbleg after Screen Recording. Menu bar icon → **Permissions…** brings the window back. Signing with your Apple Development identity keeps those grants across rebuilds.
+On first launch a welcome window walks through the two permissions: **Accessibility** (to see and focus windows) and **Screen Recording** (for live thumbnails). Each row opens the right System Settings pane and ticks itself once granted; macOS asks to reopen Bubbleg after Screen Recording. It floats above other windows, System Settings included, so the steps stay in sight. Menu bar icon → **Permissions…** brings the window back. Signing with your Apple Development identity keeps those grants across rebuilds. macOS ties each grant to the signature, though, so a development build and the notarized Developer ID copy count as different apps sharing one switch: switching between them, reset with `tccutil reset All com.yaric.bubbleg` and grant again.
 
 ## Distribute
 
@@ -33,6 +33,16 @@ On first launch a welcome window walks through the two permissions: **Accessibil
 1. Bump `CFBundleShortVersionString` (and `CFBundleVersion`) in `Info.plist`.
 2. Open `Bubbleg.xcodeproj` → **Product → Archive**.
 3. In the Organizer: **Distribute App → Direct Distribution**. Xcode signs it with your cloud-managed Developer ID certificate, notarizes it and exports a stapled `Bubbleg.app`.
+   From Terminal instead, the same steps:
+   ```bash
+   xcodebuild -project Bubbleg.xcodeproj -scheme Bubbleg -configuration Release -destination 'generic/platform=macOS' \
+     -archivePath build/Bubbleg.xcarchive archive -allowProvisioningUpdates
+   # export.plist: method developer-id, destination upload, signingStyle automatic, teamID 6J57A4298A
+   xcodebuild -exportArchive -archivePath build/Bubbleg.xcarchive -exportOptionsPlist export.plist \
+     -exportPath build/upload -allowProvisioningUpdates
+   # Once Apple has notarized it (a few minutes; this fails until then):
+   xcodebuild -exportNotarizedApp -archivePath build/Bubbleg.xcarchive -exportPath build/notarized
+   ```
 4. Wrap it in the drag-to-Applications disk image: `dmg/make.sh path/to/Bubbleg.app` (needs [dmgbuild](https://github.com/dmgbuild/dmgbuild): `pipx install dmgbuild`). It writes `site/Bubbleg.dmg`: the app on the left, an Applications shortcut on the right, a pink arrow and a short hint between them. Push, and the site's **Download** button (and `/download`) serve it.
 
 The app isn't sandboxed, since reading and focusing other apps' windows through Accessibility isn't allowed in the sandbox, so it ships with Developer ID rather than through the App Store. The hardened runtime is on, as notarization requires.
