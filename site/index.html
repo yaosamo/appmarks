@@ -455,6 +455,33 @@
       .bubbles { display: none; }
     }
 
+    /* First visit: "drag this thing", with an arrow at the panel. Script places it beside
+       the panel and drops it after the first drag; it never takes the pointer. */
+    .drag-hint { position: fixed; inset: 0; z-index: 9; pointer-events: none; transition: opacity 0.2s; }
+    .drag-hint.away { opacity: 0; }
+    .drag-hint > * { position: absolute; left: 0; top: 0; }
+    .drag-hint span {
+      padding: 6px 13px;
+      border-radius: 999px;
+      background: linear-gradient(180deg, #FF7CC4, #F2409D);
+      color: #FFFFFF;
+      font: 700 15px/1 var(--rounded);
+      white-space: nowrap;
+      box-shadow: 0 0 0 2px var(--ground), 0 6px 16px rgba(242, 64, 157, 0.35);
+      rotate: -4deg;
+    }
+    .drag-hint svg { width: 84px; height: 64px; overflow: visible; }
+    .drag-hint .halo { stroke: var(--ground); stroke-width: 7; }
+    .drag-hint .line { stroke: #F2409D; stroke-width: 3; }
+    .drag-hint span, .drag-hint svg { animation: nudge 1.4s ease-in-out infinite alternate; }
+    @keyframes nudge { to { translate: 0 -4px; } }
+    @media (prefers-reduced-motion: reduce) {
+      .drag-hint span, .drag-hint svg { animation: none; }
+    }
+    @media (max-width: 700px), (hover: none) {
+      .drag-hint { display: none; }
+    }
+
     /* Phones: a normal scrolling column; the video takes the full width. */
     @media (max-width: 700px) {
       .page { gap: 32px; padding: 40px 16px 48px; }
@@ -509,6 +536,13 @@
   </main>
 
   <!-- Drawn windows rather than screenshots: crisp at any size, and nothing private in them. -->
+  <div class="drag-hint" id="drag-hint" aria-hidden="true">
+    <span>drag this thing</span>
+    <svg viewBox="0 0 84 64" fill="none" stroke-linecap="round" stroke-linejoin="round">
+      <path class="halo" d="M78 6 C 48 2, 18 18, 10 54 M3 45 L10 56 L19 47" />
+      <path class="line" d="M78 6 C 48 2, 18 18, 10 54 M3 45 L10 56 L19 47" />
+    </svg>
+  </div>
   <div class="bubbles" id="bubbles" aria-hidden="true" title="Drag me around">
     <div class="bubble focused" style="--w: 51px">
       <svg viewBox="0 0 160 100" preserveAspectRatio="xMidYMid slice">
@@ -632,7 +666,9 @@
     // into a column, near the top or bottom into a row. Clicking a bubble only moves the ring.
     (() => {
       const panel = document.getElementById("bubbles");
-      if (matchMedia("(max-width: 700px), (hover: none)").matches) return panel.remove();
+      let hint = document.getElementById("drag-hint");
+      if (matchMedia("(max-width: 700px), (hover: none)").matches) return panel.remove(), hint.remove();
+      try { if (localStorage.getItem("bubbleg-dragged")) hint = hint.remove(); } catch {}
       const items = [...panel.children];
       const widths = items.map(item => parseFloat(item.style.getPropertyValue("--w")));
       const HEIGHT = 32, SPACING = 6, PADDING = 5;
@@ -659,9 +695,33 @@
         return isVertical ? { w: GROWN + 2 * PADDING, h: rest.h + growth } : { w: rest.w + growth, h: GROWN + 2 * PADDING };
       }
 
+      // The hint sits above the panel (below it near the top), off toward the middle of the
+      // screen, its arrow ending just short of the panel's edge. The drawing points down and
+      // to the left; it flips to point the other ways.
+      function placeHint() {
+        if (!hint) return;
+        const r = panel.getBoundingClientRect();
+        const [label, arrow] = hint.children;
+        const right = r.left + r.width / 2 < innerWidth / 2;
+        const above = r.top > 120;
+        const endX = r.left + r.width / 2, endY = above ? r.top - 6 : r.bottom + 6;
+        const x = right ? endX - 10 : endX - 74, y = above ? endY - 56 : endY - 8;
+        arrow.style.transform = `translate(${x}px, ${y}px) scale(${right ? 1 : -1}, ${above ? 1 : -1})`;
+        const lw = label.offsetWidth, lh = label.offsetHeight;
+        const lx = right ? x + 78 : x + 6 - lw, ly = (above ? y + 6 : y + 58) - lh / 2;
+        label.style.transform = `translate(${lx}px, ${ly}px)`;
+      }
+      function dismissHint() {
+        if (!hint) return;
+        hint.remove();
+        hint = null;
+        try { localStorage.setItem("bubbleg-dragged", "1"); } catch {}
+      }
+
       function setOpen(next) {
         if (open === next) return;
         open = next;
+        hint?.classList.toggle("away", open);
         if (!open) setHovered(null);
         apply(resolve(anchor), false);
       }
@@ -768,6 +828,7 @@
         panel.style.left = `${left}px`;
         panel.style.top = `${top}px`;
         panel.style.transform = `translate(${tx}, ${ty})`;
+        placeHint();
       }
 
       // The bubbles under the pointer, as a row or a column, held where they were grabbed.
@@ -868,6 +929,7 @@
         if (!drag.moved) {
           // Dragged, the panel closes back to its resting shape, which is what snaps.
           drag.moved = true;
+          dismissHint();
           panel.classList.add("dragging");
           setOpen(false);
         }
