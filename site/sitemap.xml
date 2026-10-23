@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+        xmlns:image="http://www.google.com/schemas/sitemap-image/1.1"
+        xmlns:video="http://www.google.com/schemas/sitemap-video/1.1">
+  <url>
+    <loc>https://bubbleg.yaosamo.com/</loc>
+    <lastmod>2026-10-22</lastmod>
+    <image:image>
+      <image:loc>https://bubbleg.yaosamo.com/og.png</image:loc>
+    </image:image>
+    <video:video>
+      <video:thumbnail_loc>https://bubbleg.yaosamo.com/demo-poster.jpg</video:thumbnail_loc>
+      <video:title>Bubbleg demo: switching windows on Mac</video:title>
+      <video:description>How Bubbleg turns every open window into a small preview you can click, drag or snap onto the window you're in.</video:description>
+      <video:content_loc>https://bubbleg.yaosamo.com/demo.mp4</video:content_loc>
+      <video:duration>214</video:duration>
+      <video:publication_date>2026-10-22</video:publication_date>
+    </video:video>
+  </url>
+</urlset>

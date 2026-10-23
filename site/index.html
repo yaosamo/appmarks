@@ -3,21 +3,74 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Bubbleg: a better way to switch between windows on your Mac. Free.</title>
-  <meta name="description" content="A free Mac app for switching between windows. Every open window is a small bubble you can click, drag anywhere or snap onto the window you're in." />
-  <meta property="og:title" content="Bubbleg" />
-  <meta property="og:description" content="A free, better way to switch between windows on your Mac." />
+  <title>Bubbleg – Free Window Switcher for Mac</title>
+  <meta name="description" content="Bubbleg is a free window switcher for Mac. Every open window becomes a small live preview you can click, drag anywhere or snap onto the window you're in." />
+  <link rel="canonical" href="https://bubbleg.yaosamo.com/" />
+  <meta name="robots" content="index, follow, max-image-preview:large, max-video-preview:-1, max-snippet:-1" />
+  <meta name="author" content="Yaroslav Samoylov" />
+  <meta name="theme-color" content="#FFFFFF" media="(prefers-color-scheme: light)" />
+  <meta name="theme-color" content="#14171D" media="(prefers-color-scheme: dark)" />
+  <meta property="og:site_name" content="Bubbleg" />
+  <meta property="og:locale" content="en_US" />
+  <meta property="og:title" content="Bubbleg – Free Window Switcher for Mac" />
+  <meta property="og:description" content="Every open window becomes a small live preview you can click, drag anywhere or snap onto the window you're in. Free, no in-app purchases." />
   <meta property="og:type" content="website" />
   <meta property="og:url" content="https://bubbleg.yaosamo.com/" />
+  <meta property="og:video" content="https://bubbleg.yaosamo.com/demo.mp4" />
+  <meta property="og:video:type" content="video/mp4" />
+  <meta property="og:video:width" content="1920" />
+  <meta property="og:video:height" content="1080" />
   <meta property="og:image" content="https://bubbleg.yaosamo.com/og.png" />
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
   <meta property="og:image:alt" content="The Bubbleg icon above “Better way to switch windows on Mac” and a pink Download for Mac button." />
   <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Bubbleg – Free Window Switcher for Mac" />
+  <meta name="twitter:description" content="Every open window becomes a small live preview you can click, drag anywhere or snap onto the window you're in. Free, no in-app purchases." />
   <meta name="twitter:image" content="https://bubbleg.yaosamo.com/og.png" />
+  <meta name="twitter:image:alt" content="The Bubbleg icon above “Better way to switch windows on Mac” and a pink Download for Mac button." />
   <meta name="twitter:creator" content="@yaosamo" />
   <link rel="icon" href="icon.png" type="image/png" />
-  <link rel="apple-touch-icon" href="apple-touch-icon.png" />  <style>
+  <link rel="apple-touch-icon" href="apple-touch-icon.png" />
+  <!-- For search engines: the app (free, macOS 14+), and the demo with its chapters as key moments. -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "SoftwareApplication",
+        "@id": "https://bubbleg.yaosamo.com/#app",
+        "name": "Bubbleg",
+        "description": "A free window switcher for Mac. Every open window becomes a small live preview you can click to switch to, drag anywhere or snap onto the window you're in.",
+        "url": "https://bubbleg.yaosamo.com/",
+        "applicationCategory": "UtilitiesApplication",
+        "operatingSystem": "macOS 14 or later",
+        "downloadUrl": "https://bubbleg.yaosamo.com/Bubbleg.dmg",
+        "fileSize": "3.4 MB",
+        "image": "https://bubbleg.yaosamo.com/og.png",
+        "screenshot": "https://bubbleg.yaosamo.com/demo-poster.jpg",
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+        "author": { "@type": "Person", "name": "Yaroslav Samoylov", "url": "https://yaosamo.com" }
+      },
+      {
+        "@type": "VideoObject",
+        "name": "Bubbleg demo: switching windows on Mac",
+        "description": "How Bubbleg turns every open window into a small preview you can click, drag or snap onto the window you're in.",
+        "thumbnailUrl": "https://bubbleg.yaosamo.com/demo-poster.jpg",
+        "contentUrl": "https://bubbleg.yaosamo.com/demo.mp4",
+        "uploadDate": "2026-10-22",
+        "duration": "PT3M34S",
+        "about": { "@id": "https://bubbleg.yaosamo.com/#app" },
+        "hasPart": [
+          { "@type": "Clip", "name": "The problem", "startOffset": 0, "endOffset": 98, "url": "https://bubbleg.yaosamo.com/#t=0" },
+          { "@type": "Clip", "name": "All your windows", "startOffset": 98, "endOffset": 121, "url": "https://bubbleg.yaosamo.com/#t=98" },
+          { "@type": "Clip", "name": "Snap to any window", "startOffset": 121, "endOffset": 160, "url": "https://bubbleg.yaosamo.com/#t=121" },
+          { "@type": "Clip", "name": "Settings", "startOffset": 160, "endOffset": 214, "url": "https://bubbleg.yaosamo.com/#t=160" }
+        ]
+      }
+    ]
+  }
+  </script>  <style>
     :root {
       --ground: #FFFFFF;
       --ink: #191C22;
@@ -385,7 +438,7 @@
 <body>
   <main class="page">
     <section class="intro">
-      <img class="icon" src="icon.png" alt="Bubbleg" width="144" height="144" />
+      <img class="icon" src="icon.png" alt="Bubbleg app icon" width="144" height="144" />
       <h1>Better way to switch<br class="split" /> windows on&nbsp;Mac</h1>
       <a class="get" href="Bubbleg.dmg" download>Download for Mac</a>
       <p class="price">Free · No in-app purchases</p>
@@ -529,6 +582,14 @@
       const current = chapters.findLast(button => demo.currentTime >= Number(button.dataset.start));
       for (const button of chapters) button.setAttribute("aria-current", String(button === current));
     });
+
+    // A link like #t=121 (what search results use for the chapters) starts the video there.
+    const startAt = () => {
+      const seconds = Number(location.hash.match(/^#t=(\d+)$/)?.[1]);
+      if (seconds) demo.currentTime = seconds;
+    };
+    startAt();
+    window.addEventListener("hashchange", startAt);
 
     // Bubbleg to play with, by the app's own rules (Widget.swift): drag the panel anywhere; it
     // clicks onto the viewport's corners and edge middles, and onto a side of the video, which it
