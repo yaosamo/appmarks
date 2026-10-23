@@ -380,6 +380,8 @@
       transition: background 0.15s;
     }
     .more-apps a:hover { background: var(--line); }
+    .more-apps h2 a { display: inline; padding: 0; border-radius: 0; color: inherit; text-decoration: underline; text-underline-offset: 2px; background: none; }
+    .more-apps h2 a:hover { color: var(--ink); background: none; }
     .more-apps img { width: 52px; height: 52px; flex: none; }
     .more-apps b { display: block; font-family: var(--rounded); font-size: 15px; font-weight: 600; }
     .more-apps small { display: block; font-size: 13px; line-height: 1.35; color: var(--quiet); }
@@ -504,7 +506,7 @@
     </section>
 
     <section class="more-apps" aria-labelledby="more-apps-title">
-      <h2 id="more-apps-title">Apps designed by Yaosamo</h2>
+      <h2 id="more-apps-title">Apps designed by <a href="https://yaosamo.com">Yaosamo</a></h2>
       <ul>
         <li><a href="https://nothing.yaosamo.com"><img src="apps/nothing.png" alt="" width="52" height="52" /><span><b>Nothing</b><small>A quiet place to write. Mac and iPhone</small></span></a></li>
         <li><a href="https://dots.yaosamo.com"><img src="apps/dots.png" alt="" width="52" height="52" /><span><b>Dots &amp; Clouds</b><small>Six small, playful tools for your Mac</small></span></a></li>
