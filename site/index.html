@@ -347,6 +347,46 @@
       .chapters button[aria-current="true"] { background: rgba(242, 64, 157, 0.22); color: #FFB3DA; }
     }
 
+    /* My other apps, above the credit: icon, name and what it is, three across. */
+    .more-apps {
+      width: min(100%, 760px);
+      margin-top: 24px;
+      text-align: center;
+    }
+    .more-apps h2 {
+      margin: 0 0 16px;
+      font-family: var(--rounded);
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--quiet);
+    }
+    .more-apps ul {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+    .more-apps a {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 12px;
+      border-radius: 16px;
+      color: var(--ink);
+      text-align: left;
+      text-decoration: none;
+      transition: background 0.15s;
+    }
+    .more-apps a:hover { background: var(--line); }
+    .more-apps img { width: 52px; height: 52px; flex: none; }
+    .more-apps b { display: block; font-family: var(--rounded); font-size: 15px; font-weight: 600; }
+    .more-apps small { display: block; font-size: 13px; line-height: 1.35; color: var(--quiet); }
+    @media (max-width: 700px) {
+      .more-apps ul { grid-template-columns: 1fr; }
+    }
+
     .credit {
       flex: none;
       font-size: 13px;
@@ -461,6 +501,15 @@
         <li><button type="button" data-start="121"><span>2:01</span>Snap to any window</button></li>
         <li><button type="button" data-start="160"><span>2:40</span>Settings</button></li>
       </ol>
+    </section>
+
+    <section class="more-apps" aria-labelledby="more-apps-title">
+      <h2 id="more-apps-title">More apps by Yaroslav</h2>
+      <ul>
+        <li><a href="https://nothing.yaosamo.com"><img src="apps/nothing.png" alt="" width="52" height="52" /><span><b>Nothing</b><small>A quiet place to write. Mac and iPhone</small></span></a></li>
+        <li><a href="https://dots.yaosamo.com"><img src="apps/dots.png" alt="" width="52" height="52" /><span><b>Dots &amp; Clouds</b><small>Six small, playful tools for your Mac</small></span></a></li>
+        <li><a href="https://apps.apple.com/us/app/yaosamo-time-timezone-clock/id6759643546"><img src="apps/time.png" alt="" width="52" height="52" /><span><b>Time</b><small>A timezone clock for your Mac</small></span></a></li>
+      </ul>
     </section>
 
     <footer class="credit">Designed by <a href="https://yaosamo.com">yaosamo.com</a></footer>
