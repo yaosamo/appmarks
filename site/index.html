@@ -91,43 +91,57 @@
       h1 .split { display: none; }
     }
 
-    /* Bubble gum, like the icon: a glossy pink pill with a highlight across its top. */
+    /* Bubble gum, like the icon: a jelly pink pill with a crisp rim, a gloss across its top
+       and light pooling inside the bottom edge. */
     .get {
       position: relative;
-      /* Its own stacking context, so the highlight can sit under the label but over the pink. */
+      /* Its own stacking context, so the gloss can sit under the label but over the pink. */
       isolation: isolate;
       display: inline-block;
       padding: 15px 32px;
       border-radius: 999px;
-      background: linear-gradient(180deg, #FF94D1 0%, #FF62B6 55%, #F2409D 100%);
+      background:
+        radial-gradient(110% 80% at 50% 115%, rgba(255, 214, 240, 0.85) 0%, rgba(255, 214, 240, 0) 60%),
+        linear-gradient(180deg, #FF94D3 0%, #FF5CB4 42%, #F23E9C 78%, #F552AA 100%);
       color: #FFFFFF;
       font-family: var(--rounded);
       font-weight: 700;
       text-decoration: none;
       text-shadow: 0 1px 1px rgba(160, 20, 95, 0.45);
       box-shadow:
-        inset 0 -4px 8px rgba(190, 20, 110, 0.35),
-        inset 0 1px 1px rgba(255, 255, 255, 0.8),
+        inset 0 1.5px 0 rgba(255, 255, 255, 0.9),
+        inset 0 -1.5px 0 rgba(255, 255, 255, 0.55),
+        inset 0 0 0 1px rgba(200, 20, 115, 0.3),
+        inset 0 -7px 10px rgba(255, 196, 232, 0.6),
         0 10px 24px rgba(242, 64, 157, 0.35),
+        0 6px 22px rgba(160, 130, 255, 0.2),
         0 2px 4px rgba(242, 64, 157, 0.3);
       transition: transform 0.18s cubic-bezier(0.3, 1.6, 0.5, 1);
     }
+    /* The gloss: bright at the rim, fading out before the middle. */
     .get::before {
       content: "";
       position: absolute;
-      top: 3px;
-      left: 12%;
-      right: 12%;
-      height: 42%;
+      top: 2px;
+      left: 8%;
+      right: 8%;
+      height: 48%;
       z-index: -1;
       border-radius: 999px;
-      background: linear-gradient(180deg, rgba(255, 255, 255, 0.6), rgba(255, 255, 255, 0));
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.8) 0%, rgba(255, 255, 255, 0.25) 45%, rgba(255, 255, 255, 0) 100%);
       pointer-events: none;
     }
     .get:hover { transform: scale(1.05); }
     .get:active { transform: scale(0.96); }
     @media (prefers-reduced-motion: reduce) {
       .get { transition: none; }
+    }
+    .price {
+      margin: 14px 0 0;
+      color: var(--quiet);
+      font-family: var(--rounded);
+      font-size: 13px;
+      font-weight: 500;
     }
     .get:focus-visible, a:focus-visible {
       outline: 2px solid var(--mark);
@@ -366,8 +380,9 @@
   <main class="page">
     <section class="intro">
       <img class="icon" src="icon.png" alt="Bubbleg" width="144" height="144" />
-      <h1>A better way to switch windows<br class="split" /> on&nbsp;Mac and it's&nbsp;free!</h1>
+      <h1>Better way to switch<br class="split" /> windows on&nbsp;Mac</h1>
       <a class="get" href="Bubbleg.dmg" download>Download for Mac</a>
+      <p class="price">Free · No in-app purchases</p>
     </section>
 
     <section class="stage" aria-label="Demo">
