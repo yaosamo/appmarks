@@ -113,13 +113,13 @@
       -webkit-font-smoothing: antialiased;
     }
 
-    /* One centered column: the name and the download on top, the demo filling the rest. */
+    /* One centered column: the name and the download on top, the demo under them. */
     .page {
       display: flex;
       flex-direction: column;
       align-items: center;
       gap: clamp(28px, 5vh, 56px);
-      height: 100svh;
+      min-height: 100svh;
       padding: clamp(24px, 4.5vh, 56px) clamp(16px, 4vw, 56px);
     }
 
@@ -207,13 +207,9 @@
       outline-offset: 3px;
     }
 
-    /* Stage: the video, as large as the space left over allows. */
+    /* Stage: the video, as wide as the page allows, even if that means scrolling to see all of it. */
     .stage {
-      --chapters: 48px;
-      flex: 1;
-      min-height: 0;
       width: 100%;
-      container-type: size;
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -222,8 +218,7 @@
     .screen {
       position: relative;
       flex: none;
-      /* Leaves room underneath for the chapters. */
-      width: min(100cqw, calc((100cqh - var(--chapters)) * 16 / 9), 1440px);
+      width: min(100%, 1440px);
       aspect-ratio: 16 / 9;
       border-radius: 14px;
       overflow: hidden;
@@ -428,9 +423,7 @@
 
     /* Phones: a normal scrolling column; the video takes the full width. */
     @media (max-width: 700px) {
-      .page { height: auto; gap: 32px; padding: 40px 16px 48px; }
-      .stage { flex: none; container-type: normal; }
-      .screen { width: 100%; }
+      .page { gap: 32px; padding: 40px 16px 48px; }
       h1 { font-size: 40px; }
     }
   </style>
