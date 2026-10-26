@@ -363,7 +363,9 @@ final class WidgetPanel: NSPanel {
                 // Mission Control shrinks the window into a tile; a plain move keeps its size, so only
                 // a size change pays for the check.
                 if window.size != placement?.hostFrame?.size, WindowServer.isMissionControlOpen { return waitOutMissionControl() }
-                apply(resolve(anchor), glide: true)
+                // Dragged, the window is where the window server says on every refresh, so the bubbles keep
+                // right to it, as easing would only trail behind; moved any other way it may jump, so they glide.
+                apply(resolve(anchor), glide: NSEvent.pressedMouseButtons & 1 == 0)
                 lastChange = Date()
             }
         }

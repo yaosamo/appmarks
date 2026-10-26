@@ -1,5 +1,5 @@
 import AppKit
-import ApplicationServices
+@preconcurrency import ApplicationServices
 import Combine
 
 final class ManagedWindow {
@@ -18,6 +18,15 @@ final class ManagedWindow {
         self.element = element
         self.title = title
     }
+}
+
+/// A standard window as one sync read it, off the main thread.
+private struct SeenWindow {
+    let id: CGWindowID
+    let pid: pid_t
+    let element: AXUIElement
+    let title: String?
+    let minimized: Bool
 }
 
 /// Keeps track of every open window and shows them all as one floating set of bubbles.
@@ -39,6 +48,17 @@ final class StageManager {
     private var openingOrder: [CGWindowID] = []
     private lazy var widget = WidgetPanel(onSelect: { [weak self] id in self?.focus(id) },
                                           snapTargets: { [weak self] in self?.snapTargets() ?? [] })
+
+    /// Every Accessibility call waits on the app that answers it, and some apps take a few hundred ms per
+    /// question (the Godot editor does), which on the main thread froze the bubbles mid-follow for over a
+    /// second at every sync. So the main thread asks nothing: the sync reads on one queue, and the active
+    /// window and focusing go through another so a slow sync never holds them up.
+    private let syncQueue = DispatchQueue(label: "Bubbleg.sync", qos: .userInitiated)
+    private let focusQueue = DispatchQueue(label: "Bubbleg.focus", qos: .userInteractive)
+    private var syncing = false
+    private var syncAgain = false
+    private var lookingUpFocus = false
+    private var lookUpFocusAgain = false
 
     init() {
         // A hung app must not stall the sync.
@@ -72,7 +92,7 @@ final class StageManager {
         guard !isActive else { return }
         isActive = true
         reconcile()
-        Log.write("start: windows=\(windows.count) screenCapture=\(CGPreflightScreenCaptureAccess())")
+        Log.write("start: screenCapture=\(CGPreflightScreenCaptureAccess())")
         syncTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.reconcile() }
         }
@@ -96,15 +116,37 @@ final class StageManager {
         }
     }
 
-    /// Every window on screen, the active one marked, in the order they opened.
+    /// Looks up the active window, then shows every window on screen, the active one marked, in the
+    /// order they opened. While Bubbleg's own Settings window is focused, it keeps marking the last
+    /// window; an app with no window open, or the desktop, leaves none active.
     private func updateWidget() {
+        guard isActive, Settings.shared.style.showSwitcher else { return widget.orderOut(nil) }
+        guard let app = NSWorkspace.shared.frontmostApplication, app.processIdentifier != getpid() else {
+            return showWidget()
+        }
+        guard !lookingUpFocus else { lookUpFocusAgain = true; return }
+        lookingUpFocus = true
+        let pid = app.processIdentifier
+        focusQueue.async { [weak self] in
+            let id = AXUIElementCreateApplication(pid).focusedWindow?.windowID
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated {
+                    guard let self else { return }
+                    self.lookingUpFocus = false
+                    self.focused = id
+                    self.showWidget()
+                    if self.lookUpFocusAgain {
+                        self.lookUpFocusAgain = false
+                        self.updateWidget()
+                    }
+                }
+            }
+        }
+    }
+
+    private func showWidget() {
         let style = Settings.shared.style
         guard isActive, style.showSwitcher else { return widget.orderOut(nil) }
-        // While Bubbleg's own Settings window is focused, keep marking the last window; an app with no
-        // window open, or the desktop, leaves none active.
-        if NSWorkspace.shared.frontmostApplication?.processIdentifier != getpid() {
-            focused = frontmostFocusedWindowID()
-        }
         let items = openingOrder.compactMap { windows[$0] }.filter(\.present).map {
             SwitcherItem(id: $0.id, title: $0.title, icon: appInfo($0.pid).icon, thumbnail: $0.thumbnail,
                          isFocused: $0.id == focused, isMinimized: $0.minimized)
@@ -120,57 +162,92 @@ final class StageManager {
 
     private func focus(_ id: CGWindowID) {
         guard let window = windows[id] else { return }
-        if window.minimized { window.element.setMinimized(false) }
         NSRunningApplication(processIdentifier: window.pid)?.activate()
-        window.element.focus(appPID: window.pid)
+        let (element, pid, minimized) = (window.element, window.pid, window.minimized)
+        focusQueue.async {
+            if minimized { element.setMinimized(false) }
+            element.focus(appPID: pid)
+        }
         scheduleUpdate()
     }
 
-    private func frontmostFocusedWindowID() -> CGWindowID? {
-        guard let app = NSWorkspace.shared.frontmostApplication else { return nil }
-        return AXUIElementCreateApplication(app.processIdentifier).focusedWindow?.windowID
-    }
-
+    /// Reads every app's windows on the sync queue and takes the result back on the main thread. A sync
+    /// asked for while one is still reading runs once it lands.
     func reconcile() {
-        let apps = NSWorkspace.shared.runningApplications.filter {
+        guard !syncing else { syncAgain = true; return }
+        syncing = true
+        let pids = NSWorkspace.shared.runningApplications.filter {
             $0.activationPolicy == .regular && !$0.isHidden && $0.processIdentifier != getpid()
-        }
-        let livePIDs = Set(apps.map(\.processIdentifier))
-        var seen = Set<CGWindowID>()
-
-        for app in apps {
-            let pid = app.processIdentifier
-            if observers[pid] == nil { observe(pid) }
-            for element in AXUIElementCreateApplication(pid).windows {
-                guard element.subrole == kAXStandardWindowSubrole,
-                      let id = element.windowID, let frame = element.frame,
-                      frame.width >= 120, frame.height >= 80
-                else { continue }
-                seen.insert(id)
-                let window = windows[id] ?? {
-                    let window = ManagedWindow(id: id, pid: pid, element: element, title: element.title ?? "")
-                    windows[id] = window
-                    openingOrder.append(id)
-                    return window
-                }()
-                window.element = element
-                watch(window)
-                window.title = element.title ?? window.title
-                window.present = true
-                window.minimized = element.isMinimized
+        }.map(\.processIdentifier)
+        let known = windows.values.map { (id: $0.id, pid: $0.pid, element: $0.element) }
+        let (observers, watched) = (self.observers, watchedWindows)
+        // The address alone crosses to the sync queue; the manager lives as long as the app.
+        let address = UInt(bitPattern: Unmanaged.passUnretained(self).toOpaque())
+        syncQueue.async { [weak self] in
+            let refcon = UnsafeMutableRawPointer(bitPattern: address)!
+            var added: [pid_t: AXObserver] = [:]
+            var seen: [SeenWindow] = []
+            var newlyWatched: [CGWindowID] = []
+            for pid in pids {
+                let observer = observers[pid] ?? Self.observe(pid, refcon: refcon)
+                if observers[pid] == nil { added[pid] = observer }
+                for element in AXUIElementCreateApplication(pid).windows {
+                    guard element.subrole == kAXStandardWindowSubrole,
+                          let id = element.windowID, let frame = element.frame,
+                          frame.width >= 120, frame.height >= 80
+                    else { continue }
+                    seen.append(SeenWindow(id: id, pid: pid, element: element, title: element.title, minimized: element.isMinimized))
+                    if let observer, !watched.contains(id) {
+                        Self.watch(element, observer: observer, refcon: refcon)
+                        newlyWatched.append(id)
+                    }
+                }
+            }
+            let seenIDs = Set(seen.map(\.id))
+            let live = Set(pids)
+            let gone = Set(known.filter { !seenIDs.contains($0.id) && (!live.contains($0.pid) || $0.element.frame == nil) }.map(\.id))
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated {
+                    self?.apply(seen: seen, gone: gone, live: live, added: added, newlyWatched: newlyWatched)
+                }
             }
         }
+    }
 
-        for (id, window) in windows where !seen.contains(id) {
-            if !livePIDs.contains(window.pid) || window.element.frame == nil {
+    private func apply(seen: [SeenWindow], gone: Set<CGWindowID>, live: Set<pid_t>, added: [pid_t: AXObserver], newlyWatched: [CGWindowID]) {
+        for (pid, observer) in added where observers[pid] == nil {
+            CFRunLoopAddSource(CFRunLoopGetMain(), AXObserverGetRunLoopSource(observer), .defaultMode)
+            observers[pid] = observer
+        }
+        watchedWindows.formUnion(newlyWatched)
+        for found in seen {
+            let window = windows[found.id] ?? {
+                let window = ManagedWindow(id: found.id, pid: found.pid, element: found.element, title: found.title ?? "")
+                windows[found.id] = window
+                openingOrder.append(found.id)
+                return window
+            }()
+            window.element = found.element
+            window.title = found.title ?? window.title
+            window.present = true
+            window.minimized = found.minimized
+        }
+        let seenIDs = Set(seen.map(\.id))
+        for (id, window) in windows where !seenIDs.contains(id) {
+            if gone.contains(id) {
                 forget(id)
             } else {
                 window.present = false
             }
         }
-        for pid in observers.keys where !livePIDs.contains(pid) { observers[pid] = nil }
-        appInfoCache = appInfoCache.filter { livePIDs.contains($0.key) }
+        for pid in observers.keys where !live.contains(pid) { observers[pid] = nil }
+        appInfoCache = appInfoCache.filter { live.contains($0.key) }
+        syncing = false
         updateWidget()
+        if syncAgain {
+            syncAgain = false
+            reconcile()
+        }
     }
 
     private func forget(_ id: CGWindowID) {
@@ -205,13 +282,15 @@ final class StageManager {
             let images = await Thumbnails.capture(ids, width: Settings.shared.style.captureWidth)
             for (id, image) in images { windows[id]?.thumbnail = image }
             capturing = false
-            updateWidget()
+            showWidget()
         }
     }
 
     // MARK: Accessibility notifications
 
-    private func observe(_ pid: pid_t) {
+    /// Registered on the sync queue; the notifications themselves arrive on the main run loop, which the
+    /// observer joins once the sync lands.
+    private nonisolated static func observe(_ pid: pid_t, refcon: UnsafeMutableRawPointer) -> AXObserver? {
         var observer: AXObserver?
         let callback: AXObserverCallback = { _, element, notification, refcon in
             guard let refcon else { return }
@@ -219,22 +298,19 @@ final class StageManager {
             let name = notification as String
             MainActor.assumeIsolated { manager.handle(name, element) }
         }
-        guard AXObserverCreate(pid, callback, &observer) == .success, let observer else { return }
+        guard AXObserverCreate(pid, callback, &observer) == .success, let observer else { return nil }
         let app = AXUIElementCreateApplication(pid)
         for name in [kAXWindowCreatedNotification, kAXFocusedWindowChangedNotification, kAXMainWindowChangedNotification] {
-            AXObserverAddNotification(observer, app, name as CFString, Unmanaged.passUnretained(self).toOpaque())
+            AXObserverAddNotification(observer, app, name as CFString, refcon)
         }
-        CFRunLoopAddSource(CFRunLoopGetMain(), AXObserverGetRunLoopSource(observer), .defaultMode)
-        observers[pid] = observer
+        return observer
     }
 
-    private func watch(_ window: ManagedWindow) {
-        guard let observer = observers[window.pid], !watchedWindows.contains(window.id) else { return }
+    private nonisolated static func watch(_ element: AXUIElement, observer: AXObserver, refcon: UnsafeMutableRawPointer) {
         for name in [kAXUIElementDestroyedNotification, kAXWindowMiniaturizedNotification, kAXWindowDeminiaturizedNotification,
                      kAXMovedNotification, kAXResizedNotification] {
-            AXObserverAddNotification(observer, window.element, name as CFString, Unmanaged.passUnretained(self).toOpaque())
+            AXObserverAddNotification(observer, element, name as CFString, refcon)
         }
-        watchedWindows.insert(window.id)
     }
 
     private func handle(_ notification: String, _ element: AXUIElement) {
