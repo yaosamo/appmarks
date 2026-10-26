@@ -131,6 +131,18 @@ final class WidgetPanel: NSPanel {
     private var link: CADisplayLink?
     private var lastChange = Date.distantPast
     private var target = NSRect.zero
+    /// The bubbles ride a critically damped spring toward `target`, which blends the window server's uneven
+    /// steps (mid-drag a window lands on a new spot every one to three refreshes) into one glide. A spring
+    /// trails a steady move by its smoothing time, so it aims half that far ahead at the speed `target` is
+    /// measured moving, and stops aiming ahead as soon as it stops. Replayed over recorded drags, 25ms
+    /// with half the lead moved a third as unevenly as the window's own steps and stayed as close to the
+    /// window's path; aiming further ahead overshoots its speed-ups, and smoothing longer trails behind.
+    private static let smoothing = 0.025
+    private static let lead = 0.5
+    private var position = CGPoint.zero
+    private var velocity = CGVector.zero
+    private var targetVelocity = CGVector.zero
+    private var lastTargetMove: (origin: CGPoint, time: CFTimeInterval)?
     private var audioAwake = false
     private var missionControlWait: Timer?
 
@@ -317,6 +329,10 @@ final class WidgetPanel: NSPanel {
             startLink()
         } else {
             setFrame(target, display: true)
+            position = target.origin
+            velocity = .zero
+            targetVelocity = .zero
+            lastTargetMove = nil
         }
         if restack { stack(above: next.host) }
     }
@@ -352,6 +368,8 @@ final class WidgetPanel: NSPanel {
 
     private func startLink() {
         guard link == nil, isVisible else { return }
+        position = frame.origin
+        velocity = .zero
         link = NSScreen.screens[0].displayLink(target: self, selector: #selector(tick))
         link?.add(to: .main, forMode: .common)
     }
@@ -363,10 +381,12 @@ final class WidgetPanel: NSPanel {
                 // Mission Control shrinks the window into a tile; a plain move keeps its size, so only
                 // a size change pays for the check.
                 if window.size != placement?.hostFrame?.size, WindowServer.isMissionControlOpen { return waitOutMissionControl() }
-                // Dragged, the window is where the window server says on every refresh, so the bubbles keep
-                // right to it, as easing would only trail behind; moved any other way it may jump, so they glide.
-                apply(resolve(anchor), glide: NSEvent.pressedMouseButtons & 1 == 0)
+                apply(resolve(anchor), glide: true)
                 lastChange = Date()
+                measureTarget(at: link.timestamp)
+            } else if let last = lastTargetMove, link.timestamp - last.time > 0.035 {
+                // Two refreshes without a step: the window has stopped, so stop aiming ahead of it.
+                targetVelocity = .zero
             }
         }
         step(seconds: link.targetTimestamp - link.timestamp)
@@ -376,13 +396,34 @@ final class WidgetPanel: NSPanel {
         }
     }
 
+    /// How fast `target` moves, from the time between its steps rather than per refresh, so steps that
+    /// land every other refresh still read as an even speed. A first step after a rest is a jump, not a speed.
+    private func measureTarget(at time: CFTimeInterval) {
+        defer { lastTargetMove = (target.origin, time) }
+        guard let last = lastTargetMove, time > last.time, time - last.time < 0.1 else { return targetVelocity = .zero }
+        let elapsed = time - last.time
+        let measured = CGVector(dx: (target.minX - last.origin.x) / elapsed, dy: (target.minY - last.origin.y) / elapsed)
+        targetVelocity = CGVector(dx: (targetVelocity.dx + measured.dx) / 2, dy: (targetVelocity.dy + measured.dy) / 2)
+    }
+
+    /// One refresh of the spring (Game Programming Gems 4's critically damped smoothing).
     private func step(seconds: Double) {
-        let pull = 1 - exp(-max(seconds, 1 / 240) / 0.035)
-        var origin = frame.origin
-        origin.x += (target.minX - origin.x) * pull
-        origin.y += (target.minY - origin.y) * pull
-        if abs(target.minX - origin.x) < 0.5, abs(target.minY - origin.y) < 0.5 { origin = target.origin }
-        setFrame(NSRect(origin: origin, size: target.size), display: true)
+        let elapsed = max(seconds, 1 / 240)
+        let ahead = Self.smoothing * Self.lead
+        let aim = CGPoint(x: target.minX + targetVelocity.dx * ahead, y: target.minY + targetVelocity.dy * ahead)
+        let omega = 2 / Self.smoothing, x = omega * elapsed
+        let decay = 1 / (1 + x + 0.48 * x * x + 0.235 * x * x * x)
+        func spring(_ position: CGFloat, _ velocity: CGFloat, _ aim: CGFloat) -> (CGFloat, CGFloat) {
+            let change = position - aim, pull = (velocity + omega * change) * elapsed
+            return (aim + (change + pull) * decay, (velocity - omega * pull) * decay)
+        }
+        (position.x, velocity.dx) = spring(position.x, velocity.dx, aim.x)
+        (position.y, velocity.dy) = spring(position.y, velocity.dy, aim.y)
+        if targetVelocity == .zero, hypot(target.minX - position.x, target.minY - position.y) < 0.5, hypot(velocity.dx, velocity.dy) < 20 {
+            position = target.origin
+            velocity = .zero
+        }
+        setFrame(NSRect(origin: position, size: target.size), display: true)
     }
 
     // MARK: Pointer
