@@ -177,9 +177,10 @@ final class WidgetPanel: NSPanel {
         trackPointer()
     }
 
-    /// The host window moved or resized. Apps report moves at their own pace, often 10–20 times a
-    /// second or only on release, while the window server has the real frame every refresh; follow that
-    /// until the window is still for 300ms and the bubbles have caught up.
+    /// The host window moved or resized, or a press may be dragging it. Apps report moves at their own
+    /// pace, often 10–20 times a second or only on release, while the window server has the real frame
+    /// every refresh; follow that until the button is up, the window is still for 300ms and the bubbles
+    /// have caught up.
     func follow() {
         guard case .window = anchor else { return }
         lastChange = Date()
@@ -367,7 +368,7 @@ final class WidgetPanel: NSPanel {
             }
         }
         step(seconds: link.targetTimestamp - link.timestamp)
-        if frame.origin == target.origin, Date().timeIntervalSince(lastChange) > 0.3 {
+        if frame.origin == target.origin, Date().timeIntervalSince(lastChange) > 0.3, NSEvent.pressedMouseButtons & 1 == 0 {
             link.invalidate()
             self.link = nil
         }
@@ -400,9 +401,13 @@ final class WidgetPanel: NSPanel {
     private func trackPointer() {
         guard monitors.isEmpty else { return }
         let moved = { [weak self] in MainActor.assumeIsolated { self?.pointerMoved() } }
+        let clicked = { [weak self] in MainActor.assumeIsolated { self?.follow() } }
         monitors = [
             NSEvent.addGlobalMonitorForEvents(matching: .mouseMoved) { _ in moved() },
             NSEvent.addLocalMonitorForEvents(matching: .mouseMoved) { event in moved(); return event },
+            // The window server drags a window by its title bar without the app, which often reports the
+            // move only once it is dropped; any press in another app may be one, so follow until release.
+            NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .leftMouseUp]) { _ in clicked() },
         ].compactMap { $0 }
     }
 
