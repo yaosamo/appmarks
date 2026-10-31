@@ -60,6 +60,7 @@ private struct WelcomeView: View {
     let done: () -> Void
     @State private var accessibility = Permission.accessibility.isGranted
     @State private var screenRecording = Permission.screenRecording.isGranted
+    @State private var openAtLogin = LaunchAtLogin.isEnabled
     private let poll = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
     private var allGranted: Bool { accessibility && screenRecording }
 
@@ -87,6 +88,15 @@ private struct WelcomeView: View {
                               granted: screenRecording) { Permission.screenRecording.request() }
             }
             .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 10))
+
+            #if APP_STORE
+            // Off until asked for: App Store apps may not open at login without the user's consent.
+            Toggle("Open Bubbleg at login", isOn: Binding(
+                get: { openAtLogin },
+                set: { LaunchAtLogin.isEnabled = $0; openAtLogin = LaunchAtLogin.isEnabled }
+            ))
+            .toggleStyle(.checkbox)
+            #endif
 
             HStack {
                 Text(allGranted

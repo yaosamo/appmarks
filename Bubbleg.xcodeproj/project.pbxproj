@@ -7,19 +7,35 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		072791010BA9E7EFA865A8F8 /* Bubble.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72EC55AF18A77ECA091C7D7B /* Bubble.swift */; };
 		11FBB0586DA352F7675236D6 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6808756DBB8C656D22CC5B4C /* AppDelegate.swift */; };
+		14C15730541CAEC6CCA612C0 /* LaunchAtLogin.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5E893604BF672A462F91453 /* LaunchAtLogin.swift */; };
 		2026714B05D7A0E95E018B2D /* Geometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D82CE197D2972C2B4B03FCF /* Geometry.swift */; };
+		2E88DF7230FE6DE370401DC7 /* StageManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC8AE530C6C3D5BFB402F0F7 /* StageManager.swift */; };
 		46747FC0B4D43D9EDC12DD03 /* LaunchAtLogin.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5E893604BF672A462F91453 /* LaunchAtLogin.swift */; };
 		4784521A6D8B55507F17A701 /* AX.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C51C4051E94545496724E7F /* AX.swift */; };
 		4951B903F9EE679A6F1DDA7A /* WindowServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B27D453E308B7F7759DDA429 /* WindowServer.swift */; };
+		5562DD91C845116A6E37D09F /* click.wav in Resources */ = {isa = PBXBuildFile; fileRef = 56EE4E99D8A2985078B3BB31 /* click.wav */; };
+		723804ABAD0D4BE2889AFD2B /* Settings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 06E51F2B91441EFC4F909AD6 /* Settings.swift */; };
 		7372201A60FB68A42AB283B7 /* DesktopFiles.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B6D87C26B3F89BDDADFDBBF /* DesktopFiles.swift */; };
+		87ECBC37627FF58674C755C9 /* Geometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D82CE197D2972C2B4B03FCF /* Geometry.swift */; };
 		96ECAF04694462D69E1AD0A6 /* Log.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB4AF4BD3DEF1B08E48200A1 /* Log.swift */; };
+		9A2E1884E8D3C8C4563BAA12 /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = C14E32CFF7C795F3486B0873 /* main.swift */; };
+		9B7F21CBF31F442E044A14FF /* AppIcon.icns in Resources */ = {isa = PBXBuildFile; fileRef = 9478CB150421071272601DB7 /* AppIcon.icns */; };
+		9EB7EB7997D49D8F3FB356B0 /* WindowServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B27D453E308B7F7759DDA429 /* WindowServer.swift */; };
+		9F369363201A39120B8D254B /* AX.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C51C4051E94545496724E7F /* AX.swift */; };
+		A09DE3FB3EF6B943AD1A2CE0 /* DesktopFiles.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B6D87C26B3F89BDDADFDBBF /* DesktopFiles.swift */; };
+		AC5C61A67969AB6AABC0AA30 /* Widget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E0E7AAE305C97C7D740D9F8 /* Widget.swift */; };
+		B1D7672A850B52B29617C7BB /* Thumbnails.swift in Sources */ = {isa = PBXBuildFile; fileRef = 594C6550FA5A5733781BD662 /* Thumbnails.swift */; };
 		BAD59FBE3A47A9D51626EB2E /* Welcome.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E5A3406FE88AF77BF35C590 /* Welcome.swift */; };
 		C382AF9EA62F38D8367C60A8 /* Settings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 06E51F2B91441EFC4F909AD6 /* Settings.swift */; };
 		D4302883244EBE9FE2BE8CAD /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = C14E32CFF7C795F3486B0873 /* main.swift */; };
 		D44636D7A7295095BE79A319 /* StageManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC8AE530C6C3D5BFB402F0F7 /* StageManager.swift */; };
 		D6E7F138485F9CF15B5192A6 /* Widget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E0E7AAE305C97C7D740D9F8 /* Widget.swift */; };
+		D75A4060CC4AF8E325BD0A57 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6808756DBB8C656D22CC5B4C /* AppDelegate.swift */; };
 		E16B2A51D83C0E2B5EE9B66F /* AppIcon.icns in Resources */ = {isa = PBXBuildFile; fileRef = 9478CB150421071272601DB7 /* AppIcon.icns */; };
+		EFE8FB45475CA85091D1928B /* Welcome.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E5A3406FE88AF77BF35C590 /* Welcome.swift */; };
+		F53478953435F93471AE34BA /* Log.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB4AF4BD3DEF1B08E48200A1 /* Log.swift */; };
 		F974A049EFD9EA3B309EB43B /* click.wav in Resources */ = {isa = PBXBuildFile; fileRef = 56EE4E99D8A2985078B3BB31 /* click.wav */; };
 		FBD52AEE2E62F31B1801244D /* Bubble.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72EC55AF18A77ECA091C7D7B /* Bubble.swift */; };
 		FF1C6191500F0C7CB77D124B /* Thumbnails.swift in Sources */ = {isa = PBXBuildFile; fileRef = 594C6550FA5A5733781BD662 /* Thumbnails.swift */; };
@@ -33,6 +49,7 @@
 		56EE4E99D8A2985078B3BB31 /* click.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = click.wav; sourceTree = "<group>"; };
 		594C6550FA5A5733781BD662 /* Thumbnails.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Thumbnails.swift; sourceTree = "<group>"; };
 		5B6D87C26B3F89BDDADFDBBF /* DesktopFiles.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesktopFiles.swift; sourceTree = "<group>"; };
+		5CF0413CA10A66B05E5544D4 /* BubblegAppStore.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = BubblegAppStore.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		6808756DBB8C656D22CC5B4C /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		6E5A3406FE88AF77BF35C590 /* Welcome.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Welcome.swift; sourceTree = "<group>"; };
 		72EC55AF18A77ECA091C7D7B /* Bubble.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Bubble.swift; sourceTree = "<group>"; };
@@ -90,6 +107,7 @@
 			isa = PBXGroup;
 			children = (
 				3CBD03236896A9643504C6A2 /* Bubbleg.app */,
+				5CF0413CA10A66B05E5544D4 /* BubblegAppStore.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -115,6 +133,24 @@
 			productReference = 3CBD03236896A9643504C6A2 /* Bubbleg.app */;
 			productType = "com.apple.product-type.application";
 		};
+		E56D48D662E2C72C6DC012D2 /* BubblegAppStore */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 6252BADB9AF68D01B330E85A /* Build configuration list for PBXNativeTarget "BubblegAppStore" */;
+			buildPhases = (
+				D1332CDAEB9B31C8C3E19E7D /* Sources */,
+				9FFEEE96301055BA0792AE9A /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = BubblegAppStore;
+			packageProductDependencies = (
+			);
+			productName = BubblegAppStore;
+			productReference = 5CF0413CA10A66B05E5544D4 /* BubblegAppStore.app */;
+			productType = "com.apple.product-type.application";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -125,6 +161,10 @@
 				LastUpgradeCheck = 1430;
 				TargetAttributes = {
 					0FE21B42C3AAEFCE8CCB4D1A = {
+						DevelopmentTeam = 6J57A4298A;
+						ProvisioningStyle = Automatic;
+					};
+					E56D48D662E2C72C6DC012D2 = {
 						DevelopmentTeam = 6J57A4298A;
 						ProvisioningStyle = Automatic;
 					};
@@ -145,11 +185,21 @@
 			projectRoot = "";
 			targets = (
 				0FE21B42C3AAEFCE8CCB4D1A /* Bubbleg */,
+				E56D48D662E2C72C6DC012D2 /* BubblegAppStore */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		9FFEEE96301055BA0792AE9A /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				9B7F21CBF31F442E044A14FF /* AppIcon.icns in Resources */,
+				5562DD91C845116A6E37D09F /* click.wav in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		B1C1BDA5AAAA75502D6E07FC /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -162,6 +212,27 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		D1332CDAEB9B31C8C3E19E7D /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				9F369363201A39120B8D254B /* AX.swift in Sources */,
+				D75A4060CC4AF8E325BD0A57 /* AppDelegate.swift in Sources */,
+				072791010BA9E7EFA865A8F8 /* Bubble.swift in Sources */,
+				A09DE3FB3EF6B943AD1A2CE0 /* DesktopFiles.swift in Sources */,
+				87ECBC37627FF58674C755C9 /* Geometry.swift in Sources */,
+				14C15730541CAEC6CCA612C0 /* LaunchAtLogin.swift in Sources */,
+				F53478953435F93471AE34BA /* Log.swift in Sources */,
+				723804ABAD0D4BE2889AFD2B /* Settings.swift in Sources */,
+				2E88DF7230FE6DE370401DC7 /* StageManager.swift in Sources */,
+				B1D7672A850B52B29617C7BB /* Thumbnails.swift in Sources */,
+				EFE8FB45475CA85091D1928B /* Welcome.swift in Sources */,
+				AC5C61A67969AB6AABC0AA30 /* Widget.swift in Sources */,
+				9EB7EB7997D49D8F3FB356B0 /* WindowServer.swift in Sources */,
+				9A2E1884E8D3C8C4563BAA12 /* main.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		D6F3C28BA6D0276D7C8376ED /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -186,6 +257,27 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin XCBuildConfiguration section */
+		358A86B4340BBDB7CF4C7728 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = AppStore/Bubbleg.entitlements;
+				COMBINE_HIDPI_IMAGES = YES;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.yaric.bubbleg;
+				PRODUCT_NAME = Bubbleg;
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) APP_STORE";
+			};
+			name = Debug;
+		};
 		462F202AD0567F21FBFE0D6A /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -242,6 +334,27 @@
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
 				SWIFT_STRICT_CONCURRENCY = minimal;
 				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		BD62FEFDBC3AB39FD7EA2681 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = AppStore/Bubbleg.entitlements;
+				COMBINE_HIDPI_IMAGES = YES;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.yaric.bubbleg;
+				PRODUCT_NAME = Bubbleg;
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) APP_STORE";
 			};
 			name = Release;
 		};
@@ -357,6 +470,15 @@
 			buildConfigurations = (
 				FE5983260C6F4E376D298762 /* Debug */,
 				462F202AD0567F21FBFE0D6A /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		6252BADB9AF68D01B330E85A /* Build configuration list for PBXNativeTarget "BubblegAppStore" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				358A86B4340BBDB7CF4C7728 /* Debug */,
+				BD62FEFDBC3AB39FD7EA2681 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;

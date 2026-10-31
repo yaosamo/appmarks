@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Bubbleg – Support</title>
+  <meta name="description" content="Help with Bubbleg: permissions, launch at login, and how to report a problem." />
+  <link rel="canonical" href="https://bubbleg.yaosamo.com/support" />
+  <link rel="icon" href="icon.png" type="image/png" />
+  <link rel="apple-touch-icon" href="apple-touch-icon.png" />
+  <style>
+    :root {
+      --ground: #FFFFFF;
+      --ink: #191C22;
+      --quiet: #5E6573;
+      --line: rgba(25, 28, 34, 0.12);
+      --rounded: ui-rounded, "SF Pro Rounded", system-ui, -apple-system, sans-serif;
+      color-scheme: light dark;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --ground: #14171D;
+        --ink: #ECEEF2;
+        --quiet: #9199A8;
+        --line: rgba(236, 238, 242, 0.12);
+      }
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--ground);
+      color: var(--ink);
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", "Segoe UI", Roboto, sans-serif;
+      font-size: 17px;
+      line-height: 1.55;
+      -webkit-font-smoothing: antialiased;
+    }
+    main { max-width: 640px; margin: 0 auto; padding: 56px 16px 80px; }
+    .home { display: inline-flex; align-items: center; gap: 10px; color: var(--ink); text-decoration: none; font-family: var(--rounded); font-weight: 600; }
+    .home img { width: 32px; height: 32px; }
+    h1 { font-family: var(--rounded); font-size: 34px; line-height: 1.15; letter-spacing: -0.01em; margin: 40px 0 8px; }
+    h2 { font-family: var(--rounded); font-size: 20px; margin: 36px 0 6px; }
+    p, li { color: var(--quiet); }
+    strong { color: var(--ink); font-weight: 600; }
+    a { color: inherit; }
+    code { font-size: 15px; }
+    footer { margin-top: 48px; padding-top: 20px; border-top: 1px solid var(--line); font-size: 15px; color: var(--quiet); }
+  </style>
+</head>
+<body>
+  <main>
+    <a class="home" href="/"><img src="icon.png" alt="" />Bubbleg</a>
+    <h1>Support</h1>
+    <p>Something not working, or an idea? <a href="https://github.com/yaosamo/appmarks/issues/new"><strong>Open an issue on GitHub</strong></a>, or message <a href="https://x.com/yaosamo">@yaosamo</a>. Every report is read.</p>
+
+    <h2>No bubbles appear</h2>
+    <p>Bubbleg needs <strong>Accessibility</strong> to see your windows. Click the Bubbleg icon in the menu bar → <strong>Permissions…</strong> and turn Bubbleg on in the list System Settings opens.</p>
+
+    <h2>The bubbles show icons, not previews</h2>
+    <p>Previews need <strong>Screen Recording</strong>. Turn it on from <strong>Permissions…</strong>; macOS then asks to quit and reopen Bubbleg.</p>
+
+    <h2>Open at login</h2>
+    <p>Menu bar icon → <strong>Settings…</strong> → <strong>Open at login</strong>. It is off until you turn it on.</p>
+
+    <h2>Moving the bubbles</h2>
+    <p>Drag the panel by its background. It clicks onto screen edges and corners, and onto any side of the active window, where it follows whichever window you switch to.</p>
+
+    <h2>Privacy</h2>
+    <p>Bubbleg collects nothing. See the <a href="/privacy">privacy policy</a>.</p>
+
+    <footer>Bubbleg is designed by <a href="https://yaosamo.com">Yaosamo</a>.</footer>
+  </main>
+</body>
+</html>

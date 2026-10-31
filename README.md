@@ -6,7 +6,7 @@ Every open window as a small bubble in one floating panel, in the order they ope
 - It sticks, with a click, to the middle of each screen edge (above the Dock at the bottom) and to each corner, and drags freely anywhere else. Near the left or right display edge it turns into a column, near the top or bottom into a row.
 - Dragged near a side of the active window it clicks onto it and slides along that side; from then on it sits on that side of whichever window is active, one picked in Mission Control included, and hides while no window is or while Mission Control is open. With no room outside the window, it tucks inside as a thin line that opens on hover.
 - **Pause** (menu bar icon) hides the bubbles until **Resume**.
-- **Hide Desktop Files** (menu bar icon) hides the files and folders on the desktop; Finder restarts to apply it.
+- **Hide Desktop Files** (menu bar icon) hides the files and folders on the desktop; Finder restarts to apply it. Not in the App Store build, whose sandbox can't change Finder.
 
 ## Settings
 
@@ -45,7 +45,11 @@ On first launch a welcome window walks through the two permissions: **Accessibil
    ```
 4. Wrap it in the drag-to-Applications disk image: `dmg/make.sh path/to/Bubbleg.app` (needs [dmgbuild](https://github.com/dmgbuild/dmgbuild): `pipx install dmgbuild`). It writes `site/Bubbleg.dmg`: the app on the left, an Applications shortcut on the right, a pink arrow and a short hint between them. Push, and the site's **Download** button (and `/download`) serve it.
 
-The app isn't sandboxed, since reading and focusing other apps' windows through Accessibility isn't allowed in the sandbox, so it ships with Developer ID rather than through the App Store. The hardened runtime is on, as notarization requires.
+This Developer ID build isn't sandboxed, so it keeps Hide Desktop Files and the exact private window lookup. The hardened runtime is on, as notarization requires.
+
+### Mac App Store
+
+The `Bubbleg App Store` scheme builds a sandboxed copy of the same sources for the Mac App Store: `AppStore/archive.sh` archives it and exports (or, with `--upload`, uploads) the package. What differs, the listing copy, App Review notes, privacy answers and screenshots are in [AppStore/README.md](AppStore/README.md).
 
 ## Limits
 

@@ -1,4 +1,7 @@
+#if !APP_STORE
 import Foundation
+
+// Not in the App Store build: the sandbox can neither write Finder's preferences nor restart Finder.
 
 /// Finder draws the desktop's files and folders only while `CreateDesktop` is on, and reads it at launch,
 /// so a change takes a Finder restart, which launchd does by itself after `killall`.
@@ -18,3 +21,4 @@ enum DesktopFiles {
         Log.write("desktop files -> \(hidden ? "hidden" : "shown")")
     }
 }
+#endif

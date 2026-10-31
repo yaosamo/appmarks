@@ -127,8 +127,10 @@ final class StageManager {
         guard !lookingUpFocus else { lookUpFocusAgain = true; return }
         lookingUpFocus = true
         let pid = app.processIdentifier
+        let known = windows.values.filter { $0.pid == pid }.map { (id: $0.id, element: $0.element) }
         focusQueue.async { [weak self] in
-            let id = AXUIElementCreateApplication(pid).focusedWindow?.windowID
+            let id = AXUIElementCreateApplication(pid).focusedWindow
+                .flatMap { WindowIDs.resolve([$0], pid: pid, known: known)[0] }
             DispatchQueue.main.async {
                 MainActor.assumeIsolated {
                     guard let self else { return }
@@ -191,11 +193,13 @@ final class StageManager {
             for pid in pids {
                 let observer = observers[pid] ?? Self.observe(pid, refcon: refcon)
                 if observers[pid] == nil { added[pid] = observer }
-                for element in AXUIElementCreateApplication(pid).windows {
-                    guard element.subrole == kAXStandardWindowSubrole,
-                          let id = element.windowID, let frame = element.frame,
-                          frame.width >= 120, frame.height >= 80
-                    else { continue }
+                let elements = AXUIElementCreateApplication(pid).windows.filter { element in
+                    guard element.subrole == kAXStandardWindowSubrole, let frame = element.frame else { return false }
+                    return frame.width >= 120 && frame.height >= 80
+                }
+                let mine = known.filter { $0.pid == pid }.map { (id: $0.id, element: $0.element) }
+                for (element, id) in zip(elements, WindowIDs.resolve(elements, pid: pid, known: mine)) {
+                    guard let id else { continue }
                     seen.append(SeenWindow(id: id, pid: pid, element: element, title: element.title, minimized: element.isMinimized))
                     if let observer, !watched.contains(id) {
                         Self.watch(element, observer: observer, refcon: refcon)

@@ -27,17 +27,45 @@ targets:
         # Info.plist carries the version (CFBundleShortVersionString, CFBundleVersion).
         INFOPLIST_FILE: Info.plist
         GENERATE_INFOPLIST_FILE: NO
-        # Not sandboxed: moving and reading other apps' windows through Accessibility isn't
-        # allowed in the sandbox, so Bubbleg ships with Developer ID, outside the App Store.
+        # The Developer ID build stays unsandboxed: it keeps Hide Desktop Files (Finder's preferences)
+        # and the exact window lookup (a private call). BubblegAppStore below is the sandboxed one.
         ENABLE_APP_SANDBOX: NO
         # Notarization requires the hardened runtime.
         ENABLE_HARDENED_RUNTIME: YES
         COMBINE_HIDPI_IMAGES: YES
+  # The Mac App Store build: the same sources and bundle ID, sandboxed, compiled with APP_STORE, which
+  # swaps the private window lookup for a public one, drops Hide Desktop Files and makes launch at login opt-in.
+  BubblegAppStore:
+    type: application
+    platform: macOS
+    sources:
+      - path: Sources/Bubbleg
+      - path: Resources
+        buildPhase: resources
+    settings:
+      base:
+        PRODUCT_NAME: Bubbleg
+        PRODUCT_BUNDLE_IDENTIFIER: com.yaric.bubbleg
+        INFOPLIST_FILE: Info.plist
+        GENERATE_INFOPLIST_FILE: NO
+        CODE_SIGN_ENTITLEMENTS: AppStore/Bubbleg.entitlements
+        ENABLE_APP_SANDBOX: YES
+        ENABLE_HARDENED_RUNTIME: YES
+        COMBINE_HIDPI_IMAGES: YES
+        SWIFT_ACTIVE_COMPILATION_CONDITIONS: $(inherited) APP_STORE
 schemes:
   Bubbleg:
     build:
       targets:
         Bubbleg: all
+    run:
+      config: Debug
+    archive:
+      config: Release
+  Bubbleg App Store:
+    build:
+      targets:
+        BubblegAppStore: all
     run:
       config: Debug
     archive:

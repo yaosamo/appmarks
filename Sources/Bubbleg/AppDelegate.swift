@@ -53,9 +53,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         toggleItem = NSMenuItem(title: "Pause", action: #selector(toggle), keyEquivalent: "")
         toggleItem.target = self
         menu.addItem(toggleItem)
+        #if !APP_STORE
         desktopFilesItem = NSMenuItem(title: "Hide Desktop Files", action: #selector(toggleDesktopFiles), keyEquivalent: "")
         desktopFilesItem.target = self
         menu.addItem(desktopFilesItem)
+        #endif
         menu.addItem(.separator())
         let appearance = NSMenuItem(title: "Settings…", action: #selector(showAppearance), keyEquivalent: ",")
         appearance.target = self
@@ -70,7 +72,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     /// The setting can also change from Terminal, so the tick is read fresh each time.
     func menuWillOpen(_ menu: NSMenu) {
+        #if !APP_STORE
         desktopFilesItem.state = DesktopFiles.isHidden ? .on : .off
+        #endif
     }
 
     private func updateMenu() {
@@ -82,7 +86,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         updateMenu()
     }
 
+    #if !APP_STORE
     @objc private func toggleDesktopFiles() { DesktopFiles.setHidden(!DesktopFiles.isHidden) }
+    #endif
 
     @objc private func showAppearance() { settingsWindow.show() }
 
