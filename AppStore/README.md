@@ -94,22 +94,26 @@ Paste into **App Review Information → Notes**. No sign-in is needed, so leave 
 >
 > The app is a menu bar app (LSUIElement), so it has no Dock icon. "Open at login" is off until the user turns it on.
 
-## Screenshots
+## Screenshots and App Preview (ready in `media/`)
 
-The Mac App Store takes 1 to 10 screenshots at 16:10: 1280×800, 1440×900, 2560×1600 or 2880×1800. `frame.swift` turns a raw screen capture into a finished 2880×1800 image with a caption on top:
+Upload in this order, from `AppStore/media/`:
 
-```bash
-swift AppStore/screenshots/frame.swift ~/Desktop/raw1.png "Every window, one click away" AppStore/screenshots/1.png
-swift AppStore/screenshots/frame.swift ~/Desktop/raw2.png "Snap it onto any window" AppStore/screenshots/2.png
-# add "dark" as a fourth argument for a dark canvas, e.g. for a dark-mode shot
-```
+| # | Screenshot | Shows |
+|---|---|---|
+| 1 | `screenshots/1-every-window.jpg`: **Every window, one click away** | hovering a bubble grows it into a live preview (Finder → Applications) |
+| 2 | `screenshots/2-snaps-onto-window.jpg`: **Snaps onto the window you're in** | five bubbles attached to the active Safari window, the active one ringed |
+| 3 | `screenshots/3-click-to-switch.jpg`: **Click to switch. It follows along.** | after a click, Nothing is in front and the panel moved with it |
+| 4 | `screenshots/4-screen-edge.jpg`: **Or park it on any screen edge** | the panel docked as a column on the left edge |
+| 5 | `screenshots/5-make-it-yours.jpg`: **Make it yours** | Settings with Fine-tuning open |
 
-Capture with **⇧⌘3** on a Retina display. Before capturing: raise **Settings → Fine-tuning → Preview height** so the bubbles read at thumbnail size, use a clean desktop, and keep personal or work content and other companies' websites out of the windows. Shot list:
+All are 2880×1800 with captions on a dark canvas. `screenshots/plain/` has the same five without captions (2880×1800 and 2560×1600, both accepted) if you'd rather show the bare screen.
 
-1. **Every window, one click away**: the panel on the left edge as a column, 5–6 windows open, one ringed.
-2. **Snap it onto any window**: the panel attached to the side of a large active window.
-3. **Click to switch**: the pointer over a bubble with the hover preview grown.
-4. **Make it yours**: the Settings window with Fine-tuning open, next to the bubbles.
-5. **Private by design**: the welcome window with both permissions ticked.
+**App Preview:** `media/app-preview.mp4`, 23 s, 1920×1080, 30 fps, H.264 + stereo AAC 256 kbps (Apple's Mac spec: 15–30 s, 1920×1080). It's real footage of the app: hover, click Finder, click Safari, drag the panel onto the window (with Bubbleg's own click sound), drag the window and the bubbles follow, click to switch. In App Store Connect it goes above the screenshots on the version page; set the poster frame to about 0:05.
 
-The demo video on the site can't be used for these: it has the webcam overlay and apple.com in every frame.
+Everything was shot in dark mode on a 5K display at 2× zoom, with only Safari (dots.yaosamo.com, nothing.yaosamo.com, yaosamo.com) and Finder (Applications and a folder of the Bubbleg artwork) open, and Preview height 56, Hover size 150, Resolution 720px, Refresh 1 s.
+
+### Reshooting
+
+`frame.swift` captions any capture: `swift AppStore/screenshots/frame.swift raw.png "Caption" out.png dark` (2880×1800 out; any 16:10 or 16:9 in).
+
+`AppStore/shoot/` holds the tooling that made these: `director.swift` (hide apps, place windows, find the panel, glide, click and drag the pointer) and `video.sh` (the scripted, recorded take). Stage first: hide every app but Finder and Safari (System Events `set visible … to false`), open the five windows, set the fine-tuning values above, put the panel on the left screen edge, then `bash AppStore/shoot/video.sh` and leave the mouse alone for 30 s. Stills are `screencapture -x [-C] -R x,y,1280,800` (points → 2560×1600) or `-R x,y,1440,900` (→ 2880×1800) around the panel.
