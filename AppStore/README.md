@@ -108,7 +108,14 @@ Upload in this order, from `AppStore/media/`:
 
 All are 2880×1800 with captions on a dark canvas. `screenshots/plain/` has the same five without captions (2880×1800 and 2560×1600, both accepted) if you'd rather show the bare screen.
 
-**App Preview:** `media/app-preview.mp4`, 23 s, 1920×1080, 30 fps, H.264 + stereo AAC 256 kbps (Apple's Mac spec: 15–30 s, 1920×1080). It's real footage of the app: hover, click Finder, click Safari, drag the panel onto the window (with Bubbleg's own click sound), drag the window and the bubbles follow, click to switch. In App Store Connect it goes above the screenshots on the version page; set the poster frame to about 0:05.
+**Videos** (20.8 s, 1920×1080, 30 fps, H.264 + stereo AAC 256 kbps; Apple's Mac App Preview spec is 15–30 s at 1920×1080):
+
+- `media/app-preview.mp4`: the App Store cut. It ends on "Bubbleg · For Mac", with no price, since App Store previews may not mention one. Upload it above the screenshots on the version page and set the poster frame to about 0:06.
+- `media/launch-video.mp4`: the same film for the site and social, ending on "Free for Mac · bubbleg.yaosamo.com".
+
+Both open on the icon and "Every window on your Mac, one click away", then show four beats of real footage, each with a caption on top: *All your windows, as bubbles* (slow push-in as a bubble grows) · *Click one to jump right to it* · *Drop it on your window. It snaps on.* (with Bubbleg's own click) · *And follows you wherever you go*. The only sound is that click; pass a music file as the fifth argument to `build.sh` to add a bed.
+
+Rebuild from the raw take with `AppStore/launch/`: `swift AppStore/launch/cards.swift <layers-dir> <icon-1024.png>` draws the title, end card, captions and canvas, then `AppStore/launch/build.sh <take.mov> <layers-dir> <out.mp4> store|launch [music]` assembles the film. Captions and cut points live in those two files.
 
 Everything was shot in dark mode on a 5K display at 2× zoom, with only Safari (dots.yaosamo.com, nothing.yaosamo.com, yaosamo.com) and Finder (Applications and a folder of the Bubbleg artwork) open, and Preview height 56, Hover size 150, Resolution 720px, Refresh 1 s.
 
