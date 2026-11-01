@@ -19,7 +19,7 @@ let fps = 30.0, duration = 2.8
 // Camera: close on the panel (1920×1080 of the 4K plate, so 1:1 and sharp), then a smooth pull back while the
 // windows appear, landing on the take's opening framing, 2880×1620 from (0, 270).
 let camClose = CGRect(x: 0, y: 464, width: 1920, height: 1080)
-let camWide = CGRect(x: 0, y: 270, width: 2880, height: 1620)
+let camWide = CGRect(x: 0, y: 200, width: 3200, height: 1800)  // the take's one fixed framing
 func camera(_ t: Double) -> CGRect {
     let p = min(max((t - 1.95) / 0.85, 0), 1)
     let e = p < 0.5 ? 4 * p * p * p : 1 - pow(-2 * p + 2, 3) / 2

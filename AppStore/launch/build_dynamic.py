@@ -22,13 +22,11 @@ END_FADE = INTRO + REAL - 0.25      # crossfade into the end card
 TOTAL = END_FADE + 3.1
 
 # Camera keys on output time: (t, x, y, width) in the take's 3840×2160 pixels; height = width × 9/16.
+# One fixed framing for the whole take (the intro's pull back lands on it): moving the camera mid-take read as
+# the whole picture shifting. It holds everything: the docked panel, the switches and the window swings.
 KEYS = [
-    (INTRO, 0, 270, 2880),
-    (SNAP - 0.15, 0, 270, 2880),
-    (SNAP + 0.15, 90, 345, 2700),   # a short punch-in on the snap
-    (SNAP + 0.9, 160, 220, 3200),   # ease wide for the switches and the swings
-    (INTRO + REAL - 1.0, 200, 200, 3200),
-    (TOTAL, 320, 290, 2980),        # drift in while it fades to the end card
+    (INTRO, 0, 200, 3200),
+    (TOTAL, 0, 200, 3200),
 ]
 
 
