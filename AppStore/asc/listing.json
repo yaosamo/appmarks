@@ -1,0 +1,30 @@
+{
+  "bundleId": "com.yaric.bubbleg",
+  "locale": "en-US",
+  "version": "1.0",
+  "copyright": "2026 Yaroslav Samoylov",
+  "primaryCategory": "PRODUCTIVITY",
+  "secondaryCategory": "UTILITIES",
+  "subtitle": "Every window, one click away",
+  "privacyPolicyUrl": "https://bubbleg.yaosamo.com/privacy",
+  "supportUrl": "https://bubbleg.yaosamo.com/support",
+  "marketingUrl": "https://bubbleg.yaosamo.com",
+  "keywords": "window,switcher,switch,windows,preview,dock,alt tab,stage,multitask,productivity,menu bar,focus",
+  "promotionalText": "Every open window as a small live preview in one floating panel. Click to switch, drag it anywhere, or snap it onto the window you're in. Free, with no in-app purchases.",
+  "description": "Bubbleg puts every open window one click away. Each window becomes a small live preview in a floating panel, in the order you opened them, with the one you're in ringed. Your windows stay exactly where they are.\n\nCLICK TO SWITCH\nClick a bubble and its window comes to the front, even if it's minimized or in another app.\n\nPUT IT ANYWHERE\nDrag the panel by its background. It clicks into the middle of each screen edge and into each corner, and turns into a column at the sides and a row at the top or bottom.\n\nSNAP IT TO YOUR WINDOW\nDrop it next to the window you're working in and it attaches to that side. From then on it follows whichever window is active, slides along with it as you move it, and tucks inside as a thin line when there's no room outside.\n\nMAKE IT YOURS\nPreview size, spacing, corner radius, hover size, background, app icons, thumbnail sharpness and refresh rate, all adjustable. Light, dark, or follows the system. Pause it from the menu bar whenever you like.\n\nPRIVATE BY DESIGN\nBubbleg needs Accessibility to see and switch windows, and Screen Recording to draw the previews. Previews are made on your Mac, kept in memory only, and never leave it. Bubbleg collects no data and never connects to the internet.\n\nFree, with no in-app purchases. Requires macOS 14 Sonoma or later. Works on the main display.",
+  "review": {
+    "contactFirstName": "Yaroslav",
+    "contactLastName": "Samoylov",
+    "demoAccountRequired": false,
+    "notes": "Bubbleg is a window switcher. It shows every open window as a small live preview in a floating panel, and clicking a preview brings that window to the front.\n\nWhy it asks for two permissions:\n- Accessibility: to list the open windows of other apps, read their titles and positions, and raise or unminimize the window the user clicks. This is the app's core function, the same use as other window managers on the Mac App Store.\n- Screen Recording: to draw the preview thumbnail of each window with ScreenCaptureKit. Thumbnails are held in memory only, never written to disk or sent anywhere. The app makes no network connections.\n\nHow to test:\n1. Launch Bubbleg. A welcome window explains both permissions; click \"Open Settings\" on each row and turn Bubbleg on. macOS asks to reopen the app after Screen Recording.\n2. Open two or three windows (Finder, Safari, TextEdit). A panel of bubbles appears; each bubble is one window.\n3. Click a bubble to bring that window forward. Drag the panel by its background to move it; drop it next to the active window to attach it there.\n4. The menu bar icon has Pause/Resume, Settings... (appearance, Open at login, fine-tuning) and Permissions...\n\nThe app is a menu bar app (LSUIElement), so it has no Dock icon. \"Open at login\" is off until the user turns it on."
+  },
+  "screenshots": [
+    "media/screenshots/1-every-window.jpg",
+    "media/screenshots/2-snaps-onto-window.jpg",
+    "media/screenshots/3-click-to-switch.jpg",
+    "media/screenshots/4-screen-edge.jpg",
+    "media/screenshots/5-make-it-yours.jpg"
+  ],
+  "preview": "media/app-preview.mp4",
+  "previewFrameTimeCode": "00:00:06:00"
+}
