@@ -133,6 +133,8 @@ if "age" in STEPS:
     decl = call("GET", f"/v1/appInfos/{info['id']}/ageRatingDeclaration")["data"]
     attrs = {}
     for k, v in decl["attributes"].items():
+        if "Override" in k:  # Apple's own overrides; setting the v1 one clashes with v2
+            continue
         if isinstance(v, bool):
             attrs[k] = False
         elif isinstance(v, str) and v in ("NONE", "INFREQUENT_OR_MILD", "FREQUENT_OR_INTENSE", "INFREQUENT", "FREQUENT"):
@@ -145,7 +147,7 @@ if "age" in STEPS:
         if k in decl["attributes"] and decl["attributes"][k] is None:
             attrs[k] = "NONE"
     for k in ("gambling", "unrestrictedWebAccess", "lootBox", "messagingAndChat", "parentalControls", "ageAssurance",
-              "userGeneratedContent", "advertising", "healthOrWellnessTopics"):
+              "userGeneratedContent", "advertising", "healthOrWellnessTopics", "socialMedia"):
         if k in decl["attributes"] and decl["attributes"][k] is None:
             attrs[k] = False
     call("PATCH", f"/v1/ageRatingDeclarations/{decl['id']}", {"data": {"type": "ageRatingDeclarations", "id": decl["id"], "attributes": attrs}})
@@ -230,6 +232,22 @@ if "media" in STEPS:
         call("PATCH", f"/v1/appPreviews/{pid}", {"data": {"type": "appPreviews", "id": pid,
                                                          "attributes": {"previewFrameTimeCode": L["previewFrameTimeCode"]}}})
         log("media", f"App Preview {os.path.basename(L['preview'])}, poster at {L['previewFrameTimeCode']}")
+
+if "poster" in STEPS:
+    # The poster frame can only be set once Apple has finished processing the uploaded video.
+    loc = localization(f"/v1/appStoreVersions/{VERSION_ID}/appStoreVersionLocalizations", "appStoreVersionLocalizations",
+                       "appStoreVersion", "appStoreVersions", VERSION_ID, {})
+    psets = call("GET", f"/v1/appStoreVersionLocalizations/{loc['id']}/appPreviewSets")["data"]
+    previews = [p for s in psets for p in call("GET", f"/v1/appPreviewSets/{s['id']}/appPreviews")["data"]]
+    if not previews:
+        raise SystemExit("[poster] no preview uploaded")
+    p = previews[0]
+    state = (p["attributes"].get("assetDeliveryState") or {}).get("state")
+    if state != "COMPLETE":
+        raise SystemExit(f"[poster] video still processing ({state})")
+    call("PATCH", f"/v1/appPreviews/{p['id']}", {"data": {"type": "appPreviews", "id": p["id"],
+                                                         "attributes": {"previewFrameTimeCode": L["previewFrameTimeCode"]}}})
+    log("poster", f"poster frame at {L['previewFrameTimeCode']}")
 
 if "build" in STEPS:
     builds = call("GET", f"/v1/builds?filter[app]={APP_ID}&filter[preReleaseVersion.platform]=MAC_OS&sort=-uploadedDate&limit=5")["data"]
