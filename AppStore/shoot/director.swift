@@ -90,6 +90,16 @@ case "menu":
         print("items:", entries.compactMap { copy($0, kAXTitleAttribute) as? String }); exit(1)
     }
     AXUIElementPerformAction(entry, kAXPressAction as CFString)
+case "path":
+    // director path x0 y0  x1 y1 s1  x2 y2 s2 …: press at the first point, glide through the rest, release.
+    glide(to: CGPoint(x: num(1), y: num(2)), seconds: 0.3)
+    post(.leftMouseDown, pointer); usleep(120_000)
+    var i = 3
+    while i + 2 < args.count + 0 && i + 2 <= args.count - 1 {
+        glide(to: CGPoint(x: num(i), y: num(i + 1)), seconds: num(i + 2), type: .leftMouseDragged)
+        i += 3
+    }
+    usleep(100_000); post(.leftMouseUp, pointer)
 case "pos":
     print(Int(pointer.x), Int(pointer.y))
 default:
