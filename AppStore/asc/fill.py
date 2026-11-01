@@ -196,9 +196,11 @@ def upload(kind, set_rel, set_type, set_id, path, extra=None):
     return asset["id"]
 
 
-if "media" in STEPS:
+if "media" in STEPS or "preview" in STEPS:
     loc = localization(f"/v1/appStoreVersions/{VERSION_ID}/appStoreVersionLocalizations", "appStoreVersionLocalizations",
                        "appStoreVersion", "appStoreVersions", VERSION_ID, {})
+
+if "media" in STEPS:
     sets = call("GET", f"/v1/appStoreVersionLocalizations/{loc['id']}/appScreenshotSets")["data"]
     shots = next((s for s in sets if s["attributes"]["screenshotDisplayType"] == "APP_DESKTOP"), None) or call(
         "POST", "/v1/appScreenshotSets", {"data": {"type": "appScreenshotSets", "attributes": {"screenshotDisplayType": "APP_DESKTOP"},
@@ -215,6 +217,8 @@ if "media" in STEPS:
             upload("appScreenshots", "appScreenshotSet", "appScreenshotSets", shots["id"], os.path.join(STORE, p))
             log("media", f"screenshot {os.path.basename(p)}")
 
+if "media" in STEPS or "preview" in STEPS:
+    # `preview` alone replaces just the video (with --replace), leaving the screenshots as they are.
     psets = call("GET", f"/v1/appStoreVersionLocalizations/{loc['id']}/appPreviewSets")["data"]
     pset = next((s for s in psets if s["attributes"]["previewType"] == "DESKTOP"), None) or call(
         "POST", "/v1/appPreviewSets", {"data": {"type": "appPreviewSets", "attributes": {"previewType": "DESKTOP"},
@@ -227,11 +231,9 @@ if "media" in STEPS:
     if have:
         log("media", "preview already uploaded; skipped (--replace to redo)")
     else:
-        pid = upload("appPreviews", "appPreviewSet", "appPreviewSets", pset["id"], os.path.join(STORE, L["preview"]),
-                     {"mimeType": "video/mp4"})
-        call("PATCH", f"/v1/appPreviews/{pid}", {"data": {"type": "appPreviews", "id": pid,
-                                                         "attributes": {"previewFrameTimeCode": L["previewFrameTimeCode"]}}})
-        log("media", f"App Preview {os.path.basename(L['preview'])}, poster at {L['previewFrameTimeCode']}")
+        upload("appPreviews", "appPreviewSet", "appPreviewSets", pset["id"], os.path.join(STORE, L["preview"]),
+               {"mimeType": "video/mp4"})
+        log("media", f"App Preview {os.path.basename(L['preview'])} uploaded; run `poster` once Apple has processed it")
 
 if "poster" in STEPS:
     # The poster frame can only be set once Apple has finished processing the uploaded video.
