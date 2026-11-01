@@ -387,6 +387,10 @@
     @media (max-width: 700px) {
       .more-apps ul { grid-template-columns: 1fr; }
     }
+    /* Support and privacy, for anyone looking (and for the App Store listing's links). */
+    .legal { margin: 32px 0 48px; text-align: center; font-size: 13px; color: var(--quiet); }
+    .legal a { color: inherit; text-underline-offset: 2px; }
+    @media (hover: hover) { .legal a:hover { color: var(--ink); } }
 
 
     /* Bubbleg to play with: the app's floating panel, sized as the app draws it (32px tall
@@ -534,6 +538,8 @@
         <li><a href="https://apps.apple.com/us/app/yaosamo-time-timezone-clock/id6759643546"><img src="apps/time.png" alt="" width="52" height="52" /><span><b>Time</b><small>A timezone clock for your Mac</small></span></a></li>
       </ul>
     </section>
+
+    <p class="legal"><a href="/support">Support</a> · <a href="/privacy">Privacy</a></p>
 
   </main>
 
