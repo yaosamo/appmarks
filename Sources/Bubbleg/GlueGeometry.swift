@@ -63,6 +63,13 @@ enum GlueGeometry {
                        y: (first.maxY + second.minY) / 2)
     }
 
+    /// How far the window on the other side of a seam moves to stay flush when its neighbour goes from
+    /// `was` to `now`: as far as the neighbour's side on that seam moved, along the seam's axis only.
+    static func followResize(from was: CGRect, to now: CGRect, resizedIsFirst: Bool, beside: Bool) -> CGVector {
+        if beside { return CGVector(dx: resizedIsFirst ? now.maxX - was.maxX : now.minX - was.minX, dy: 0) }
+        return CGVector(dx: 0, dy: resizedIsFirst ? now.maxY - was.maxY : now.minY - was.minY)
+    }
+
     /// Every window glued to `id`, directly or through others, `id` included.
     static func group(of id: CGWindowID, in seams: Set<GlueSeam>) -> Set<CGWindowID> {
         var group: Set<CGWindowID> = [id], frontier = [id]

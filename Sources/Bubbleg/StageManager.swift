@@ -217,6 +217,20 @@ final class StageManager {
         scheduleUpdate()
     }
 
+    /// Glued windows minimize together and come back together, the one restored on top. Each partner's
+    /// own notification then finds the rest already there, so it goes no further.
+    private func minimizeGlued(with element: AXUIElement, minimized: Bool) {
+        guard !glue.seams.isEmpty, let window = windows.values.first(where: { CFEqual($0.element, element) }) else { return }
+        let partners = glue.group(of: window.id).subtracting([window.id]).compactMap { windows[$0] }
+            .map { (element: $0.element, pid: $0.pid) }
+        guard !partners.isEmpty else { return }
+        let (element, pid) = (window.element, window.pid)
+        focusQueue.async {
+            for partner in partners where partner.element.isMinimized != minimized { partner.element.setMinimized(minimized) }
+            if !minimized { element.focus(appPID: pid) }
+        }
+    }
+
     /// Reads every app's windows on the sync queue and takes the result back on the main thread. A sync
     /// asked for while one is still reading runs once it lands.
     func reconcile() {
@@ -372,6 +386,11 @@ final class StageManager {
             // Moved some other way than a drag, from a keyboard shortcut or a window manager.
             if !glue.seams.isEmpty, let window = windows.values.first(where: { CFEqual($0.element, element) }) {
                 glue.windowMoved(window.id)
+            }
+        case kAXWindowMiniaturizedNotification, kAXWindowDeminiaturizedNotification:
+            minimizeGlued(with: element, minimized: notification == kAXWindowMiniaturizedNotification)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+                MainActor.assumeIsolated { self?.reconcile() }
             }
         default:
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in

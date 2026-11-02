@@ -200,14 +200,18 @@ final class WindowGlue {
             handled.formUnion(group)
             let was = known[id]!
             known[id] = frame
-            // Resized, or two of them moved at once by something else: nothing to follow.
-            guard was.size == frame.size, changed.keys.filter(group.contains).count == 1 else { continue }
-            let (dx, dy) = (frame.minX - was.minX, frame.minY - was.minY)
-            for partner in group where partner != id {
-                guard let from = known[partner] else { continue }
-                let target = from.offsetBy(dx: dx, dy: dy)
-                known[partner] = target
-                move(partner, to: target.origin, at: time)
+            // Two of them moved at once by something else: nothing to follow.
+            guard changed.keys.filter(group.contains).count == 1 else { continue }
+            if was.size == frame.size {
+                shift(group.subtracting([id]), dx: frame.minX - was.minX, dy: frame.minY - was.minY, at: time)
+            } else {
+                // Resized: whatever is glued to a side that moved keeps flush with it, the rest stays put.
+                for seam in seams where seam.contains(id) {
+                    let partner = seam.first == id ? seam.second : seam.first
+                    let side = GlueGeometry.group(of: partner, in: seams.filter { !$0.contains(id) }).subtracting([id])
+                    let offset = GlueGeometry.followResize(from: was, to: frame, resizedIsFirst: seam.first == id, beside: seam.beside)
+                    shift(side, dx: offset.dx, dy: offset.dy, at: time)
+                }
             }
         }
 
@@ -221,6 +225,16 @@ final class WindowGlue {
             stopTicking()
             dropPulledApart()
             refresh()
+        }
+    }
+
+    private func shift(_ windows: Set<CGWindowID>, dx: CGFloat, dy: CGFloat, at time: CFTimeInterval) {
+        guard dx != 0 || dy != 0 else { return }
+        for id in windows {
+            guard let from = known[id] else { continue }
+            let target = from.offsetBy(dx: dx, dy: dy)
+            known[id] = target
+            move(id, to: target.origin, at: time)
         }
     }
 

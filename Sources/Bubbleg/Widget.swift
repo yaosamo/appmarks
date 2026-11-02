@@ -665,6 +665,8 @@ enum Click {
                 return Log.write("click.wav missing from the app bundle")
             }
             player = try? AVAudioPlayer(contentsOf: url)
+            // A soft tick under the pointer, not a click across the room.
+            player?.volume = 0.35
             player?.prepareToPlay()
             silence = try? AVAudioPlayer(contentsOf: url)
             silence?.volume = 0
