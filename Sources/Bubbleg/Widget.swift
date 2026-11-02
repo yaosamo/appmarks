@@ -7,7 +7,8 @@ import SwiftUI
 enum WidgetAnchor: Equatable {
     /// The bubbles' top-left, in Accessibility coordinates, as a column or a row.
     case free(CGPoint, vertical: Bool)
-    case screen(WindowSpot)
+    /// A sticky point of the display with that id.
+    case screen(WindowSpot, display: CGDirectDisplayID)
     /// On `side` (`.top`, `.right`, `.bottom` or `.left`) of the active window, moving to each window
     /// that becomes active; `offset` is how far along that side, from 0 at its start to 1 at its end.
     case window(CGWindowID, side: WindowSpot, offset: CGFloat)
@@ -16,7 +17,7 @@ enum WidgetAnchor: Equatable {
     var snap: String? {
         switch self {
         case .free: nil
-        case .screen(let spot): "screen \(spot)"
+        case .screen(let spot, let display): "screen \(spot) \(display)"
         case .window(let id, let side, _): "\(id) \(side)"
         }
     }
@@ -160,6 +161,14 @@ final class WidgetPanel: NSPanel {
         acceptsMouseMovedEvents = true
         contentView = FirstClickHostingView(rootView: WidgetView(model: model, hover: hover))
         Click.prepare()
+        // A display plugged in, unplugged or rearranged moves every coordinate the bubbles rest at.
+        NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification, object: nil,
+                                               queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self, self.isVisible, self.drag == nil else { return }
+                self.relayout()
+            }
+        }
     }
 
     override var canBecomeKey: Bool { false }
@@ -241,14 +250,15 @@ final class WidgetPanel: NSPanel {
     private func resolve(_ anchor: WidgetAnchor) -> Placement {
         switch anchor {
         case .free(let origin, let vertical):
-            let screen = Geometry.belowMenuBar
-            let body = clamped(CGRect(origin: origin, size: bodySize(vertical: vertical)), to: screen)
+            let free = CGRect(origin: origin, size: bodySize(vertical: vertical))
+            let screen = Geometry.display(around: free).belowMenuBar
+            let body = clamped(free, to: screen)
             // Hovered bubbles grow toward the middle of the screen.
             return Placement(body: body, vertical: vertical,
                              growsTowardStart: vertical ? body.midX > screen.midX : body.midY > screen.midY)
-        case .screen(let spot):
+        case .screen(let spot, let display):
             let vertical = isVertical(spot)
-            let body = spot.frame(bodySize(vertical: vertical), in: area(of: spot), margin: Self.margin)
+            let body = spot.frame(bodySize(vertical: vertical), in: area(of: spot, on: display), margin: Self.margin)
             return Placement(body: body, vertical: vertical, growsTowardStart: (vertical ? spot.unit.x : spot.unit.y) == 1)
         case .window(let id, let side, let offset):
             // Nothing else moves during a drag, and asking the window server right after moving the panel
@@ -264,7 +274,9 @@ final class WidgetPanel: NSPanel {
     private func onWindow(_ window: CGRect, id: CGWindowID, side: WindowSpot, offset: CGFloat) -> Placement {
         let vertical = side.isVertical
         let size = bodySize(vertical: vertical)
-        let screen = Geometry.visibleArea
+        // The window's own display: measured against the primary one, a window on another display had
+        // its bubbles clamped back onto the primary one, or tucked inside because nothing outside fit.
+        let screen = Geometry.display(around: window).visibleArea
         let gap = style.switcherOffsetX
 
         let (start, length, own) = vertical ? (window.minY, window.height, size.height) : (window.minX, window.width, size.width)
@@ -288,8 +300,9 @@ final class WidgetPanel: NSPanel {
 
     /// The middle of an edge sits clear of the Dock, on top of it at the bottom; a corner goes right
     /// into the screen's corner, beside the Dock.
-    private func area(of spot: WindowSpot) -> CGRect {
-        spot.unit.x != 0.5 && spot.unit.y != 0.5 ? Geometry.belowMenuBar : Geometry.visibleArea
+    private func area(of spot: WindowSpot, on id: CGDirectDisplayID) -> CGRect {
+        let display = Geometry.display(id)
+        return spot.unit.x != 0.5 && spot.unit.y != 0.5 ? display.belowMenuBar : display.visibleArea
     }
 
     /// A column on the screen's left and right, a row on its top and bottom; a corner keeps either.
@@ -370,7 +383,8 @@ final class WidgetPanel: NSPanel {
         guard link == nil, isVisible else { return }
         position = frame.origin
         velocity = .zero
-        link = NSScreen.screens[0].displayLink(target: self, selector: #selector(tick))
+        // The panel's own display, which refreshes at its own rate.
+        link = displayLink(target: self, selector: #selector(tick))
         link?.add(to: .main, forMode: .common)
     }
 
@@ -527,8 +541,8 @@ final class WidgetPanel: NSPanel {
     /// onto the nearest sticky point, the side of the frontmost window it reaches, or nowhere in particular.
     private func snap(_ pointer: CGPoint, _ drag: Drag) -> WidgetAnchor {
         switch anchor {
-        case .screen(let spot):
-            if distance(from: point(of: spot), to: freeBody(pointer, vertical: isVertical(spot), drag)) < Self.release {
+        case .screen(let spot, let display):
+            if distance(from: point(of: spot, on: display), to: freeBody(pointer, vertical: isVertical(spot), drag)) < Self.release {
                 return anchor
             }
         case .window(let id, let side, _):
@@ -539,9 +553,11 @@ final class WidgetPanel: NSPanel {
         case .free:
             break
         }
+        // The sticky points of the display under the pointer.
+        let display = Geometry.display(at: pointer).id
         for spot in WindowSpot.allCases
-        where distance(from: point(of: spot), to: freeBody(pointer, vertical: isVertical(spot), drag)) < Self.pointReach {
-            return .screen(spot)
+        where distance(from: point(of: spot, on: display), to: freeBody(pointer, vertical: isVertical(spot), drag)) < Self.pointReach {
+            return .screen(spot, display: display)
         }
         for (index, window) in drag.windows.enumerated() {
             for side in [WindowSpot.top, .right, .bottom, .left] {
@@ -559,7 +575,7 @@ final class WidgetPanel: NSPanel {
     /// With the pointer near a display edge, the bubbles turn to lie along it: a column by the left and
     /// right edges, a row by the top and bottom. Nil away from every edge, where they keep their shape.
     private func facing(_ pointer: CGPoint) -> Bool? {
-        let screen = Geometry.belowMenuBar
+        let screen = Geometry.display(at: pointer).belowMenuBar
         let side = min(pointer.x - screen.minX, screen.maxX - pointer.x)
         let end = min(pointer.y - screen.minY, screen.maxY - pointer.y)
         guard min(side, end) < Self.turnReach else { return nil }
@@ -588,8 +604,8 @@ final class WidgetPanel: NSPanel {
         return CGRect(x: pointer.x - x * size.width, y: pointer.y - y * size.height, width: size.width, height: size.height)
     }
 
-    private func point(of spot: WindowSpot) -> CGPoint {
-        let screen = area(of: spot)
+    private func point(of spot: WindowSpot, on display: CGDirectDisplayID) -> CGPoint {
+        let screen = area(of: spot, on: display)
         return CGPoint(x: screen.minX + screen.width * spot.unit.x, y: screen.minY + screen.height * spot.unit.y)
     }
 
@@ -603,8 +619,9 @@ final class WidgetPanel: NSPanel {
         guard let placement else { return }
         var saved: [String: Any] = ["vertical": model.vertical]
         switch anchor {
-        case .screen(let spot):
+        case .screen(let spot, let display):
             saved["spot"] = spot.rawValue
+            saved["display"] = display
         case .window(_, let side, let offset):
             saved["side"] = side.rawValue
             saved["offset"] = offset
@@ -618,13 +635,17 @@ final class WidgetPanel: NSPanel {
     private static func restore() -> (WidgetAnchor, Bool) {
         let saved = UserDefaults.standard.dictionary(forKey: defaultsKey)
         let vertical = saved?["vertical"] as? Bool ?? false
-        if let raw = saved?["spot"] as? String, let spot = WindowSpot(rawValue: raw) { return (.screen(spot), vertical) }
+        if let raw = saved?["spot"] as? String, let spot = WindowSpot(rawValue: raw) {
+            // Back to the primary display if that one is unplugged.
+            let display = (saved?["display"] as? NSNumber)?.uint32Value ?? CGMainDisplayID()
+            return (.screen(spot, display: display), vertical)
+        }
         // Picked up by the first active window.
         if let raw = saved?["side"] as? String, let side = WindowSpot(rawValue: raw) {
             return (.window(0, side: side, offset: saved?["offset"] as? Double ?? 0.5), vertical)
         }
         if let x = saved?["x"] as? Double, let y = saved?["y"] as? Double { return (.free(CGPoint(x: x, y: y), vertical: vertical), vertical) }
-        return (.screen(.bottom), false)
+        return (.screen(.bottom, display: CGMainDisplayID()), false)
     }
 }
 
