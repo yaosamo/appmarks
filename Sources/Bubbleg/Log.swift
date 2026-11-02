@@ -3,7 +3,11 @@ import Foundation
 /// Appends to ~/Library/Logs/Bubbleg.log, so a misbehaving session can be read back after the fact.
 enum Log {
     private static let url = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Logs/Bubbleg.log")
-    private static let formatter = ISO8601DateFormatter()
+    private static let formatter: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter
+    }()
 
     static func write(_ message: String) {
         let line = "\(formatter.string(from: Date())) \(message)\n"

@@ -32,6 +32,11 @@ final class WindowGlue {
     private var timer: Timer?
     private var lastChange: CFTimeInterval = 0
     private var buttons: [GlueSeam: GlueButton] = [:]
+    /// Windows flying to or from the Dock, until when: the window server shows each step of the animation as
+    /// a new frame, which read as a resize and pushed the partner across the screen.
+    private var held: [CGWindowID: CFTimeInterval] = [:]
+    /// What followed what lately, so a minimize the glue only hears of once it's over can be undone.
+    private var recentShifts: [(time: CFTimeInterval, leader: CGWindowID, windows: Set<CGWindowID>, dx: CGFloat, dy: CGFloat)] = []
 
     init(element: @escaping (CGWindowID) -> AXUIElement?, candidates: @escaping () -> Set<CGWindowID>) {
         self.element = element
@@ -65,7 +70,7 @@ final class WindowGlue {
 
     /// The window closed.
     func forget(_ id: CGWindowID) {
-        for seam in seams where seam.contains(id) { remove(seam) }
+        for seam in seams where seam.contains(id) { remove(seam, why: "\(id) closed") }
         known[id] = nil
         pending[id] = nil
     }
@@ -80,6 +85,31 @@ final class WindowGlue {
             let covered = order[..<index].contains { !group.contains($0.id) && $0.frame.intersects(window.frame) }
             return covered ? window.id : nil
         }
+    }
+
+    /// `id` and everything glued to it are minimizing or restoring: hold still until they've landed.
+    func hold(_ id: CGWindowID, seconds: Double = 1.5) {
+        let until = CACurrentMediaTime() + seconds
+        for member in group(of: id) { held[member] = max(held[member] ?? 0, until) }
+        startTicking()
+    }
+
+    /// `id` minimized without the glue hearing of it until now, as from a double-click on its title bar:
+    /// whatever its animation made the partners follow goes back.
+    func undoRecentFollows(of id: CGWindowID) {
+        let group = group(of: id), time = CACurrentMediaTime()
+        var total: [CGWindowID: CGVector] = [:]
+        for shift in recentShifts where time - shift.time < 1.2 && group.contains(shift.leader) {
+            for window in shift.windows { total[window, default: .zero].dx += shift.dx; total[window, default: .zero].dy += shift.dy }
+        }
+        recentShifts.removeAll { group.contains($0.leader) }
+        for (window, offset) in total where offset != .zero {
+            guard let from = known[window] else { continue }
+            let target = from.offsetBy(dx: -offset.dx, dy: -offset.dy)
+            known[window] = target
+            move(window, to: target.origin, at: time)
+        }
+        if !total.isEmpty { Log.write("glue: undid follows of \(id)'s minimize: \(total)") }
     }
 
     // MARK: Gluing
@@ -129,6 +159,7 @@ final class WindowGlue {
             move(window.id, to: target.origin, at: time)
         }
         seams.insert(seam)
+        Log.write("glue: \(seam.first) + \(seam.second) \(seam.beside ? "beside" : "stacked")")
         Click.play()
         NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .now)
         lastChange = time
@@ -144,13 +175,15 @@ final class WindowGlue {
         for seam in seams { remove(seam) }
     }
 
-    private func remove(_ seam: GlueSeam) {
-        seams.remove(seam)
+    private func remove(_ seam: GlueSeam, why: String = "") {
+        guard seams.remove(seam) != nil else { return }
+        Log.write("unglue: \(seam.first) + \(seam.second) \(why)")
         buttons.removeValue(forKey: seam)?.orderOut(nil)
         let glued = Set(seams.flatMap { [$0.first, $0.second] })
         for id in [seam.first, seam.second] where !glued.contains(id) {
             known[id] = nil
             pending[id] = nil
+            held[id] = nil
         }
     }
 
@@ -189,8 +222,15 @@ final class WindowGlue {
             }
         }
 
+        for (id, until) in held where time > until {
+            held[id] = nil
+            // Landed: wherever it is now is where it rests, nothing to follow.
+            if let frame = frames[id] { known[id] = frame }
+        }
+        recentShifts.removeAll { time - $0.time > 1.2 }
+
         let changed = frames.filter { id, frame in
-            guard pending[id] == nil else { return false }
+            guard pending[id] == nil, held[id] == nil else { return false }
             guard let was = known[id] else { known[id] = frame; return false }
             return abs(was.minX - frame.minX) > 0.5 || abs(was.minY - frame.minY) > 0.5 || was.size != frame.size
         }
@@ -203,14 +243,14 @@ final class WindowGlue {
             // Two of them moved at once by something else: nothing to follow.
             guard changed.keys.filter(group.contains).count == 1 else { continue }
             if was.size == frame.size {
-                shift(group.subtracting([id]), dx: frame.minX - was.minX, dy: frame.minY - was.minY, at: time)
+                shift(group.subtracting([id]), following: id, dx: frame.minX - was.minX, dy: frame.minY - was.minY, at: time)
             } else {
                 // Resized: whatever is glued to a side that moved keeps flush with it, the rest stays put.
                 for seam in seams where seam.contains(id) {
                     let partner = seam.first == id ? seam.second : seam.first
                     let side = GlueGeometry.group(of: partner, in: seams.filter { !$0.contains(id) }).subtracting([id])
                     let offset = GlueGeometry.followResize(from: was, to: frame, resizedIsFirst: seam.first == id, beside: seam.beside)
-                    shift(side, dx: offset.dx, dy: offset.dy, at: time)
+                    shift(side, following: id, dx: offset.dx, dy: offset.dy, at: time)
                 }
             }
         }
@@ -220,16 +260,18 @@ final class WindowGlue {
             // The locks wait for the windows to settle rather than chase them.
             buttons.values.forEach { $0.orderOut(nil) }
         }
-        let held = NSEvent.pressedMouseButtons & 1 != 0
-        if !held, pending.isEmpty, inFlight.isEmpty, time - lastChange > 0.3 {
+        let pressed = NSEvent.pressedMouseButtons & 1 != 0
+        if !pressed, pending.isEmpty, inFlight.isEmpty, self.held.isEmpty, time - lastChange > 0.3 {
             stopTicking()
             dropPulledApart()
             refresh()
         }
     }
 
-    private func shift(_ windows: Set<CGWindowID>, dx: CGFloat, dy: CGFloat, at time: CFTimeInterval) {
-        guard dx != 0 || dy != 0 else { return }
+    private func shift(_ windows: Set<CGWindowID>, following leader: CGWindowID, dx: CGFloat, dy: CGFloat, at time: CFTimeInterval) {
+        let windows = windows.filter { held[$0] == nil }
+        guard dx != 0 || dy != 0, !windows.isEmpty else { return }
+        recentShifts.append((time, leader, windows, dx, dy))
         for id in windows {
             guard let from = known[id] else { continue }
             let target = from.offsetBy(dx: dx, dy: dy)
@@ -243,7 +285,7 @@ final class WindowGlue {
         let frames = Dictionary(WindowServer.onScreen(Set(seams.flatMap { [$0.first, $0.second] })).map { ($0.id, $0.frame) }) { a, _ in a }
         for seam in seams {
             guard let first = frames[seam.first], let second = frames[seam.second] else { continue }
-            if !GlueGeometry.touching(first, second, beside: seam.beside) { remove(seam) }
+            if !GlueGeometry.touching(first, second, beside: seam.beside) { remove(seam, why: "pulled apart \(first) \(second)") }
         }
     }
 

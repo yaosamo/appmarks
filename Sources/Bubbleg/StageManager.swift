@@ -56,7 +56,10 @@ final class StageManager {
     private var raisingGlued = false
     private var minimizeMonitors: [Any] = []
     /// A press on a glued window's minimize button, waiting for its release.
-    private var armedMinimize: (window: AXUIElement, button: CGRect)?
+    private var armedMinimize: (window: AXUIElement, button: CGRect, minimize: Bool)?
+    /// Counts presses, so a hit test that comes back after the next press is dropped.
+    private var press = 0
+    private var earlyRelease: CGPoint?
 
     /// Every Accessibility call waits on the app that answers it, and some apps take a few hundred ms per
     /// question (the Godot editor does), which on the main thread froze the bubbles mid-follow for over a
@@ -210,6 +213,7 @@ final class StageManager {
             .map { (element: $0.element, pid: $0.pid) }
         guard !partners.isEmpty || all else { return }
         raisingGlued = true
+        Log.write("raise glued: \(id) partners=\(partners.count) all=\(all)")
         let (element, pid, minimized) = (window.element, window.pid, window.minimized)
         focusQueue.async {
             for partner in partners { partner.element.focus(appPID: partner.pid) }
@@ -231,14 +235,26 @@ final class StageManager {
         guard !glue.seams.isEmpty, let window = windows.values.first(where: { CFEqual($0.element, element) }) else { return }
         let partners = glue.group(of: window.id).subtracting([window.id]).compactMap { windows[$0]?.element }
         guard !partners.isEmpty else { return }
+        glue.hold(window.id)
         let (element, pid) = (window.element, window.pid)
         let all = DispatchGroup()
+        let lock = NSLock()
+        var sent = 0
         for partner in partners {
             DispatchQueue.global(qos: .userInteractive).async(group: all) {
-                if partner.isMinimized != minimized { partner.setMinimized(minimized) }
+                guard partner.isMinimized != minimized else { return }
+                partner.setMinimized(minimized)
+                lock.withLock { sent += 1 }
             }
         }
-        if !minimized { all.notify(queue: focusQueue) { element.focus(appPID: pid) } }
+        all.notify(queue: focusQueue) {
+            let sent = lock.withLock { sent }
+            guard sent > 0 else { return }
+            Log.write("minimize glued: \(window.id) minimized=\(minimized) sent to \(sent) of \(partners.count) partners")
+            // Only the window that started it comes forward: each partner's own notification finds the
+            // rest already there and sends nothing, so it doesn't take the front from it.
+            if !minimized { element.focus(appPID: pid) }
+        }
     }
 
     /// The minimized notification only arrives once the window has gone down to the Dock, so partners
@@ -266,24 +282,46 @@ final class StageManager {
         ].compactMap { $0 }
     }
 
+    /// The press is on a glued window's minimize button, or on a minimized glued window's tile in the Dock.
     private func minimizeButtonPressed(at point: CGPoint) {
         armedMinimize = nil
+        earlyRelease = nil
+        press += 1
         guard !glue.seams.isEmpty else { return }
+        let press = press
         focusQueue.async { [weak self] in
-            guard let button = AXUIElement.element(at: point), button.subrole == kAXMinimizeButtonSubrole,
-                  let window = button.window, let frame = button.frame else { return }
+            guard let hit = AXUIElement.element(at: point), let frame = hit.frame else { return }
+            let (subrole, window, title) = (hit.subrole, hit.window, hit.title)
             DispatchQueue.main.async {
-                MainActor.assumeIsolated { self?.armedMinimize = (window, frame) }
+                MainActor.assumeIsolated {
+                    guard let self, self.press == press else { return }
+                    if subrole == kAXMinimizeButtonSubrole, let window {
+                        self.armedMinimize = (window, frame, true)
+                    } else if subrole == kAXMinimizedWindowDockItemSubrole, let title {
+                        // The Dock names the tile after the window; a glued one wins a tie with another of that title.
+                        // The cached minimized flag can lag a sync behind, so it only breaks ties.
+                        let rank = { (w: ManagedWindow) in (self.glue.group(of: w.id).count > 1 ? 2 : 0) + (w.minimized ? 1 : 0) }
+                        let match = self.windows.values.filter { $0.title == title }.max { rank($0) < rank($1) }
+                        Log.write("dock tile pressed: \(title) -> \(match?.id.description ?? "no minimized window of that title")")
+                        guard let match else { return }
+                        self.armedMinimize = (match.element, frame, false)
+                    } else {
+                        return
+                    }
+                    // A quick click lets go before the hit test is back.
+                    if let released = self.earlyRelease { self.minimizeButtonReleased(at: released) }
+                }
             }
         }
     }
 
     /// The button minimizes on release over it, as a button does; let go elsewhere and nothing happens.
     private func minimizeButtonReleased(at point: CGPoint) {
-        guard let armed = armedMinimize else { return }
+        guard let armed = armedMinimize else { earlyRelease = point; return }
         armedMinimize = nil
         guard armed.button.insetBy(dx: -4, dy: -4).contains(point) else { return }
-        minimizeGlued(with: armed.window, minimized: true)
+        Log.write(armed.minimize ? "minimize button released" : "dock tile released")
+        minimizeGlued(with: armed.window, minimized: armed.minimize)
     }
 
     /// Most apps minimize on ⌘M but not all; if the window is still up a moment later, its partners come back.
@@ -343,7 +381,11 @@ final class StageManager {
             }
             let seenIDs = Set(seen.map(\.id))
             let live = Set(pids)
-            let gone = Set(known.filter { !seenIDs.contains($0.id) && (!live.contains($0.pid) || $0.element.frame == nil) }.map(\.id))
+            // A window mid-restore can fail to report a frame for a moment; only one the window server
+            // no longer has is gone, or a restored window lost its glue as it came back.
+            let gone = Set(known.filter {
+                !seenIDs.contains($0.id) && (!live.contains($0.pid) || ($0.element.frame == nil && WindowServer.frames(of: [$0.id]).isEmpty))
+            }.map(\.id))
             DispatchQueue.main.async {
                 MainActor.assumeIsolated {
                     self?.apply(seen: seen, gone: gone, live: live, added: added, newlyWatched: newlyWatched)
@@ -464,6 +506,9 @@ final class StageManager {
                 glue.windowMoved(window.id)
             }
         case kAXWindowMiniaturizedNotification, kAXWindowDeminiaturizedNotification:
+            let id = windows.values.first(where: { CFEqual($0.element, element) })?.id
+            Log.write("\(notification): \(id?.description ?? "unknown window")")
+            if let id, notification == kAXWindowMiniaturizedNotification { glue.undoRecentFollows(of: id) }
             minimizeGlued(with: element, minimized: notification == kAXWindowMiniaturizedNotification)
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
                 MainActor.assumeIsolated { self?.reconcile() }
