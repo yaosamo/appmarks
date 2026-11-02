@@ -54,6 +54,9 @@ final class StageManager {
     })
     /// Glued windows come forward together; raising the partners refocuses the window, which mustn't start it again.
     private var raisingGlued = false
+    private var minimizeMonitors: [Any] = []
+    /// A press on a glued window's minimize button, waiting for its release.
+    private var armedMinimize: (window: AXUIElement, button: CGRect)?
 
     /// Every Accessibility call waits on the app that answers it, and some apps take a few hundred ms per
     /// question (the Godot editor does), which on the main thread froze the bubbles mid-follow for over a
@@ -101,6 +104,7 @@ final class StageManager {
         guard !isActive else { return }
         isActive = true
         glue.start()
+        watchMinimizeStarts()
         reconcile()
         Log.write("start: screenCapture=\(CGPreflightScreenCaptureAccess())")
         syncTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
@@ -116,6 +120,8 @@ final class StageManager {
         thumbnailTimer?.invalidate()
         thumbnailTimer = nil
         glue.stop()
+        minimizeMonitors.forEach(NSEvent.removeMonitor)
+        minimizeMonitors = []
         widget.orderOut(nil)
     }
 
@@ -219,15 +225,85 @@ final class StageManager {
 
     /// Glued windows minimize together and come back together, the one restored on top. Each partner's
     /// own notification then finds the rest already there, so it goes no further.
+    ///
+    /// Each partner is asked on a queue of its own, so they all go at once rather than one app after another.
     private func minimizeGlued(with element: AXUIElement, minimized: Bool) {
         guard !glue.seams.isEmpty, let window = windows.values.first(where: { CFEqual($0.element, element) }) else { return }
-        let partners = glue.group(of: window.id).subtracting([window.id]).compactMap { windows[$0] }
-            .map { (element: $0.element, pid: $0.pid) }
+        let partners = glue.group(of: window.id).subtracting([window.id]).compactMap { windows[$0]?.element }
         guard !partners.isEmpty else { return }
         let (element, pid) = (window.element, window.pid)
-        focusQueue.async {
-            for partner in partners where partner.element.isMinimized != minimized { partner.element.setMinimized(minimized) }
-            if !minimized { element.focus(appPID: pid) }
+        let all = DispatchGroup()
+        for partner in partners {
+            DispatchQueue.global(qos: .userInteractive).async(group: all) {
+                if partner.isMinimized != minimized { partner.setMinimized(minimized) }
+            }
+        }
+        if !minimized { all.notify(queue: focusQueue) { element.focus(appPID: pid) } }
+    }
+
+    /// The minimized notification only arrives once the window has gone down to the Dock, so partners
+    /// minimizing on it went one after the other. A press on a glued window's minimize button, or ⌘M on
+    /// one, sends its partners down the moment it starts instead.
+    private func watchMinimizeStarts() {
+        guard minimizeMonitors.isEmpty else { return }
+        let primaryHeight = { NSScreen.screens.first?.frame.height ?? 0 }
+        let down = { [weak self] (point: CGPoint) in MainActor.assumeIsolated { self?.minimizeButtonPressed(at: point) } }
+        let up = { [weak self] (point: CGPoint) in MainActor.assumeIsolated { self?.minimizeButtonReleased(at: point) } }
+        let key = { [weak self] in MainActor.assumeIsolated { self?.minimizeKeyPressed() } }
+        minimizeMonitors = [
+            NSEvent.addGlobalMonitorForEvents(matching: .leftMouseDown) { _ in
+                let mouse = NSEvent.mouseLocation
+                down(CGPoint(x: mouse.x, y: primaryHeight() - mouse.y))
+            },
+            NSEvent.addGlobalMonitorForEvents(matching: .leftMouseUp) { _ in
+                let mouse = NSEvent.mouseLocation
+                up(CGPoint(x: mouse.x, y: primaryHeight() - mouse.y))
+            },
+            NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { event in
+                guard event.keyCode == 46, event.modifierFlags.intersection(.deviceIndependentFlagsMask) == .command else { return }
+                key()
+            },
+        ].compactMap { $0 }
+    }
+
+    private func minimizeButtonPressed(at point: CGPoint) {
+        armedMinimize = nil
+        guard !glue.seams.isEmpty else { return }
+        focusQueue.async { [weak self] in
+            guard let button = AXUIElement.element(at: point), button.subrole == kAXMinimizeButtonSubrole,
+                  let window = button.window, let frame = button.frame else { return }
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated { self?.armedMinimize = (window, frame) }
+            }
+        }
+    }
+
+    /// The button minimizes on release over it, as a button does; let go elsewhere and nothing happens.
+    private func minimizeButtonReleased(at point: CGPoint) {
+        guard let armed = armedMinimize else { return }
+        armedMinimize = nil
+        guard armed.button.insetBy(dx: -4, dy: -4).contains(point) else { return }
+        minimizeGlued(with: armed.window, minimized: true)
+    }
+
+    /// Most apps minimize on ⌘M but not all; if the window is still up a moment later, its partners come back.
+    private func minimizeKeyPressed() {
+        guard !glue.seams.isEmpty, let app = NSWorkspace.shared.frontmostApplication else { return }
+        let pid = app.processIdentifier
+        focusQueue.async { [weak self] in
+            guard let window = AXUIElementCreateApplication(pid).focusedWindow, !window.isMinimized else { return }
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated {
+                    guard let self else { return }
+                    self.minimizeGlued(with: window, minimized: true)
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+                        self.focusQueue.async {
+                            guard !window.isMinimized else { return }
+                            DispatchQueue.main.async { MainActor.assumeIsolated { self.minimizeGlued(with: window, minimized: false) } }
+                        }
+                    }
+                }
+            }
         }
     }
 

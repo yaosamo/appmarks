@@ -79,6 +79,19 @@ extension AXUIElement {
     var windows: [AXUIElement] { copy(kAXWindowsAttribute) as? [AXUIElement] ?? [] }
     var title: String? { copy(kAXTitleAttribute) as? String }
     var subrole: String? { copy(kAXSubroleAttribute) as? String }
+
+    /// The window a button or other control belongs to.
+    var window: AXUIElement? {
+        guard let value = copy(kAXWindowAttribute), CFGetTypeID(value) == AXUIElementGetTypeID() else { return nil }
+        return (value as! AXUIElement)
+    }
+
+    /// Whatever is on screen at `point`, in top-left-origin global coordinates.
+    static func element(at point: CGPoint) -> AXUIElement? {
+        var element: AXUIElement?
+        let found = AXUIElementCopyElementAtPosition(AXUIElementCreateSystemWide(), Float(point.x), Float(point.y), &element)
+        return found == .success ? element : nil
+    }
     var isMinimized: Bool { copy(kAXMinimizedAttribute) as? Bool ?? false }
 
     var focusedWindow: AXUIElement? {
