@@ -48,6 +48,12 @@ final class StageManager {
     private var openingOrder: [CGWindowID] = []
     private lazy var widget = WidgetPanel(onSelect: { [weak self] id in self?.focus(id) },
                                           snapTargets: { [weak self] in self?.snapTargets() ?? [] })
+    private lazy var glue = WindowGlue(element: { [weak self] id in self?.windows[id]?.element },
+                                       candidates: { [weak self] in
+        Set(self?.windows.values.filter { $0.present && !$0.minimized }.map(\.id) ?? [])
+    })
+    /// Glued windows come forward together; raising the partners refocuses the window, which mustn't start it again.
+    private var raisingGlued = false
 
     /// Every Accessibility call waits on the app that answers it, and some apps take a few hundred ms per
     /// question (the Godot editor does), which on the main thread froze the bubbles mid-follow for over a
@@ -83,6 +89,9 @@ final class StageManager {
         style.dropFirst()
             .sink { [weak self] _ in MainActor.assumeIsolated { self?.updateWidget() } }
             .store(in: &subscriptions)
+        style.map(\.glueWindows).removeDuplicates()
+            .sink { [weak self] enabled in MainActor.assumeIsolated { self?.glue.isEnabled = enabled } }
+            .store(in: &subscriptions)
         style.map(\.captureWidth).removeDuplicates().dropFirst()
             .sink { [weak self] _ in MainActor.assumeIsolated { self?.refreshThumbnails() } }
             .store(in: &subscriptions)
@@ -91,6 +100,7 @@ final class StageManager {
     func start() {
         guard !isActive else { return }
         isActive = true
+        glue.start()
         reconcile()
         Log.write("start: screenCapture=\(CGPreflightScreenCaptureAccess())")
         syncTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
@@ -105,6 +115,7 @@ final class StageManager {
         syncTimer = nil
         thumbnailTimer?.invalidate()
         thumbnailTimer = nil
+        glue.stop()
         widget.orderOut(nil)
     }
 
@@ -135,6 +146,7 @@ final class StageManager {
                 MainActor.assumeIsolated {
                     guard let self else { return }
                     self.lookingUpFocus = false
+                    if let id, id != self.focused { self.raiseGlued(with: id) }
                     self.focused = id
                     self.showWidget()
                     if self.lookUpFocusAgain {
@@ -147,6 +159,8 @@ final class StageManager {
     }
 
     private func showWidget() {
+        // Focus and window order changed: each lock goes back just above its front window.
+        glue.refresh()
         let style = Settings.shared.style
         guard isActive, style.showSwitcher else { return widget.orderOut(nil) }
         let items = openingOrder.compactMap { windows[$0] }.filter(\.present).map {
@@ -164,11 +178,41 @@ final class StageManager {
 
     private func focus(_ id: CGWindowID) {
         guard let window = windows[id] else { return }
+        if glue.group(of: id).count > 1 { return raiseGlued(with: id, all: true) }
         NSRunningApplication(processIdentifier: window.pid)?.activate()
         let (element, pid, minimized) = (window.element, window.pid, window.minimized)
         focusQueue.async {
             if minimized { element.setMinimized(false) }
             element.focus(appPID: pid)
+        }
+        scheduleUpdate()
+    }
+
+    /// Brings `id`'s glued partners up behind it: each partner forward, then `id` again on top. Only those
+    /// another window covers, unless `all`, and not while a press may be dragging a window, as raising
+    /// another app mid-drag would.
+    private func raiseGlued(with id: CGWindowID, all: Bool = false) {
+        guard !raisingGlued, let window = windows[id] else { return }
+        if NSEvent.pressedMouseButtons & 1 != 0 {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+                MainActor.assumeIsolated { self?.raiseGlued(with: id, all: all) }
+            }
+            return
+        }
+        let partners = (all ? Array(glue.group(of: id).subtracting([id])) : glue.coveredPartners(of: id))
+            .compactMap { windows[$0] }.filter { !$0.minimized }
+            .map { (element: $0.element, pid: $0.pid) }
+        guard !partners.isEmpty || all else { return }
+        raisingGlued = true
+        let (element, pid, minimized) = (window.element, window.pid, window.minimized)
+        focusQueue.async {
+            for partner in partners { partner.element.focus(appPID: partner.pid) }
+            if minimized { element.setMinimized(false) }
+            element.focus(appPID: pid)
+            // The focus notifications those raises send land after this; let them pass first.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                MainActor.assumeIsolated { [weak self] in self?.raisingGlued = false }
+            }
         }
         scheduleUpdate()
     }
@@ -258,6 +302,7 @@ final class StageManager {
         windows[id] = nil
         openingOrder.removeAll { $0 == id }
         watchedWindows.remove(id)
+        glue.forget(id)
     }
 
     /// An app's name and icon never change while it runs, and looking them up costs a sysctl and a bundle
@@ -324,6 +369,10 @@ final class StageManager {
             scheduleUpdate()
         case kAXMovedNotification, kAXResizedNotification:
             widget.follow()
+            // Moved some other way than a drag, from a keyboard shortcut or a window manager.
+            if !glue.seams.isEmpty, let window = windows.values.first(where: { CFEqual($0.element, element) }) {
+                glue.windowMoved(window.id)
+            }
         default:
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
                 MainActor.assumeIsolated { self?.reconcile() }

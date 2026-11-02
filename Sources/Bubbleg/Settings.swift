@@ -4,6 +4,8 @@ import SwiftUI
 /// The keys keep their old `switcher` names, so settings saved by earlier versions still load.
 struct Style: Codable, Equatable {
     var showSwitcher = true
+    /// Windows dropped edge to edge stick together and move as one.
+    var glueWindows = true
     var alwaysDark = false
 
     /// How far snapped bubbles sit from the window's edge.
@@ -97,6 +99,10 @@ private struct SettingsView: View {
                     Toggle(isOn: $settings.style.showSwitcher) {
                         Text("Show bubbles")
                         Text("Every open window as a bubble in a panel you can drag anywhere or snap onto the active window.")
+                    }
+                    Toggle(isOn: $settings.style.glueWindows) {
+                        Text("Glue windows edge to edge")
+                        Text("Drop a window against another's side and they move together. Click the lock on the seam to unglue them.")
                     }
                     Toggle("Open at login", isOn: Binding(
                         get: { openAtLogin },

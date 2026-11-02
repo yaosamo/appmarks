@@ -95,6 +95,12 @@ extension AXUIElement {
         return CGRect(origin: origin, size: size)
     }
 
+    func setPosition(_ origin: CGPoint) {
+        var origin = origin
+        guard let value = AXValueCreate(.cgPoint, &origin) else { return }
+        set(kAXPositionAttribute, value)
+    }
+
     func setMinimized(_ minimized: Bool) {
         set(kAXMinimizedAttribute, minimized as CFBoolean)
     }

@@ -652,7 +652,7 @@ final class WidgetPanel: NSPanel {
 /// The click for every snap, `Resources/click.wav` in the app bundle. It plays on its own queue:
 /// starting the audio output can take most of a second, which on the main thread froze the drag at
 /// the very moment of the snap.
-private enum Click {
+enum Click {
     private static let queue = DispatchQueue(label: "Bubbleg.click", qos: .userInteractive)
     private static var player: AVAudioPlayer?
     /// The click on a silent loop, so the audio output, which sleeps when idle and takes up to half a
