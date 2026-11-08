@@ -18,6 +18,8 @@ struct SwitcherItem: Identifiable, Equatable {
 /// The bubble under the pointer, if any.
 final class BubbleHover: ObservableObject {
     @Published var hovered: CGWindowID?
+    /// The transfer bar under the pointer, if any.
+    @Published var transfer: ObjectIdentifier?
 }
 
 /// The panel never becomes key, so without this the first click on a bubble would be swallowed.

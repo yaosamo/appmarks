@@ -120,6 +120,8 @@ final class WidgetPanel: NSPanel {
 
     private let model = WidgetModel()
     private let hover = BubbleHover()
+    private let transfers = Transfers.shared
+    private let tip = TransferTip()
     private let onSelect: (CGWindowID) -> Void
     private let snapTargets: () -> [(id: CGWindowID, frame: CGRect)]
     private var style = Style()
@@ -207,6 +209,8 @@ final class WidgetPanel: NSPanel {
         monitors.forEach(NSEvent.removeMonitor)
         monitors = []
         hover.hovered = nil
+        hover.transfer = nil
+        tip.hide()
         drag = nil
         keepAudioAwake(false)
         super.orderOut(sender)
@@ -467,7 +471,21 @@ final class WidgetPanel: NSPanel {
            !layout.backdrop(layout.frames(hovered: hover.hovered)).insetBy(dx: -16, dy: -16).contains(local) {
             return setCollapsed(true)
         }
-        let hovered = layout.item(at: local, hovered: hover.hovered)
+        let bars = TransferBars.frames(count: transfers.items.count, on: layout.backdrop(layout.frames(hovered: hover.hovered)),
+                                       cornerRadius: layout.cornerRadius + 4)
+        let index = TransferBars.index(at: local, in: bars)
+        let bar = index.map { transfers.items[$0].id }
+        if bar != hover.transfer {
+            hover.transfer = bar
+            if let bar, let index {
+                let rect = bars[index]
+                tip.show(bar, above: CGRect(x: frame.minX + rect.minX, y: frame.maxY - rect.maxY, width: rect.width, height: rect.height),
+                         level: level)
+            } else {
+                tip.hide()
+            }
+        }
+        let hovered = bar == nil ? layout.item(at: local, hovered: hover.hovered) : nil
         if hovered != hover.hovered { hover.hovered = hovered }
     }
 
@@ -503,6 +521,8 @@ final class WidgetPanel: NSPanel {
             self.drag = drag
             keepAudioAwake(true)
             hover.hovered = nil
+            hover.transfer = nil
+            tip.hide()
             setCollapsed(false)
         }
         let next = snap(pointer, drag)
@@ -520,6 +540,11 @@ final class WidgetPanel: NSPanel {
         self.drag = nil
         if drag.moved { return save() }
         if model.collapsed { return setCollapsed(false) }
+        // A bar shows its file in Finder.
+        if let id = hover.transfer {
+            if let url = transfers.items.first(where: { $0.id == id })?.url { NSWorkspace.shared.activateFileViewerSelecting([url]) }
+            return
+        }
         if let id = layout.item(at: localPointer, hovered: hover.hovered) { onSelect(id) }
     }
 
@@ -670,6 +695,7 @@ private struct WidgetView: View {
     @ObservedObject var model: WidgetModel
     @ObservedObject var hover: BubbleHover
     @ObservedObject var settings = Settings.shared
+    @ObservedObject var transfers = Transfers.shared
 
     var body: some View {
         let style = settings.style
@@ -698,10 +724,18 @@ private struct WidgetView: View {
                     SwitcherChip(item: item, style: style, size: frame.size)
                         .offset(x: frame.minX, y: frame.minY)
                 }
+                let bars = TransferBars.frames(count: transfers.items.count, on: backdrop, cornerRadius: layout.cornerRadius + 4)
+                ForEach(Array(zip(transfers.items, bars)), id: \.0.id) { transfer, bar in
+                    TransferBar(fraction: transfer.fraction, size: bar.size, highlighted: hover.transfer == transfer.id)
+                        .offset(x: bar.minX, y: bar.minY)
+                        .transition(.opacity)
+                }
             }
         }
         .frame(width: layout.size.width, height: layout.size.height, alignment: .topLeading)
         .animation(.spring(response: 0.2, dampingFraction: 0.9), value: hover.hovered)
+        .animation(.easeOut(duration: 0.15), value: hover.transfer)
+        .animation(.easeOut(duration: 0.25), value: transfers.items.map(\.id))
         .animation(.snappy(duration: 0.2), value: model.collapsed)
     }
 }

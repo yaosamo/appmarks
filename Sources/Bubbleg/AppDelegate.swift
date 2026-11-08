@@ -16,6 +16,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         buildMenu()
         followAppearanceSetting()
         LaunchAtLogin.enableOnFirstLaunch()
+        Transfers.shared.start()
         if !Permission.allGranted { welcomeWindow.show() }
         startWhenTrusted()
     }

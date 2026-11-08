@@ -5,6 +5,7 @@ Every open window as a small bubble in one floating panel, in the order they ope
 - **Click** a bubble to focus its window; **drag** anywhere else to move the panel.
 - It sticks, with a click, to the middle of each screen edge (above the Dock at the bottom) and to each corner, and drags freely anywhere else. Near the left or right display edge it turns into a column, near the top or bottom into a row.
 - Dragged near a side of the active window it clicks onto it and slides along that side; from then on it sits on that side of whichever window is active, one picked in Mission Control included, and hides while no window is or while Mission Control is open. With no room outside the window, it tucks inside as a thin line that opens on hover.
+- Files being copied, downloaded or received over AirDrop show as thin bars on the bubbles' top edge, stacked one per transfer; hover one to see what it is and how far along, click it to show the file in Finder. macOS only reports a transfer to whoever watches the folder it lands in, so this covers Downloads, Desktop, Documents, the home folder, the top of each mounted drive, and one folder level inside each.
 - **Pause** (menu bar icon) hides the bubbles until **Resume**.
 - **Hide Desktop Files** (menu bar icon) hides the files and folders on the desktop; Finder restarts to apply it. Not in the App Store build, whose sandbox can't change Finder.
 

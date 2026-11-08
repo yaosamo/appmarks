@@ -12,12 +12,14 @@
 		14C15730541CAEC6CCA612C0 /* LaunchAtLogin.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5E893604BF672A462F91453 /* LaunchAtLogin.swift */; };
 		2026714B05D7A0E95E018B2D /* Geometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D82CE197D2972C2B4B03FCF /* Geometry.swift */; };
 		2E88DF7230FE6DE370401DC7 /* StageManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC8AE530C6C3D5BFB402F0F7 /* StageManager.swift */; };
+		366473E54E6A4FE1EDECD087 /* Transfers.swift in Sources */ = {isa = PBXBuildFile; fileRef = E05AA18D997BE005C9DADB99 /* Transfers.swift */; };
 		46747FC0B4D43D9EDC12DD03 /* LaunchAtLogin.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5E893604BF672A462F91453 /* LaunchAtLogin.swift */; };
 		4784521A6D8B55507F17A701 /* AX.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C51C4051E94545496724E7F /* AX.swift */; };
 		4951B903F9EE679A6F1DDA7A /* WindowServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B27D453E308B7F7759DDA429 /* WindowServer.swift */; };
 		5562DD91C845116A6E37D09F /* click.wav in Resources */ = {isa = PBXBuildFile; fileRef = 56EE4E99D8A2985078B3BB31 /* click.wav */; };
 		723804ABAD0D4BE2889AFD2B /* Settings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 06E51F2B91441EFC4F909AD6 /* Settings.swift */; };
 		7372201A60FB68A42AB283B7 /* DesktopFiles.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B6D87C26B3F89BDDADFDBBF /* DesktopFiles.swift */; };
+		76E913D8B02E5EB50DDB3B20 /* Transfers.swift in Sources */ = {isa = PBXBuildFile; fileRef = E05AA18D997BE005C9DADB99 /* Transfers.swift */; };
 		87ECBC37627FF58674C755C9 /* Geometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D82CE197D2972C2B4B03FCF /* Geometry.swift */; };
 		96ECAF04694462D69E1AD0A6 /* Log.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB4AF4BD3DEF1B08E48200A1 /* Log.swift */; };
 		9A2E1884E8D3C8C4563BAA12 /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = C14E32CFF7C795F3486B0873 /* main.swift */; };
@@ -59,6 +61,7 @@
 		B27D453E308B7F7759DDA429 /* WindowServer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowServer.swift; sourceTree = "<group>"; };
 		B5E893604BF672A462F91453 /* LaunchAtLogin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchAtLogin.swift; sourceTree = "<group>"; };
 		C14E32CFF7C795F3486B0873 /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
+		E05AA18D997BE005C9DADB99 /* Transfers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Transfers.swift; sourceTree = "<group>"; };
 		EB4AF4BD3DEF1B08E48200A1 /* Log.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Log.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -95,6 +98,7 @@
 				06E51F2B91441EFC4F909AD6 /* Settings.swift */,
 				AC8AE530C6C3D5BFB402F0F7 /* StageManager.swift */,
 				594C6550FA5A5733781BD662 /* Thumbnails.swift */,
+				E05AA18D997BE005C9DADB99 /* Transfers.swift */,
 				6E5A3406FE88AF77BF35C590 /* Welcome.swift */,
 				2E0E7AAE305C97C7D740D9F8 /* Widget.swift */,
 				B27D453E308B7F7759DDA429 /* WindowServer.swift */,
@@ -226,6 +230,7 @@
 				723804ABAD0D4BE2889AFD2B /* Settings.swift in Sources */,
 				2E88DF7230FE6DE370401DC7 /* StageManager.swift in Sources */,
 				B1D7672A850B52B29617C7BB /* Thumbnails.swift in Sources */,
+				366473E54E6A4FE1EDECD087 /* Transfers.swift in Sources */,
 				EFE8FB45475CA85091D1928B /* Welcome.swift in Sources */,
 				AC5C61A67969AB6AABC0AA30 /* Widget.swift in Sources */,
 				9EB7EB7997D49D8F3FB356B0 /* WindowServer.swift in Sources */,
@@ -247,6 +252,7 @@
 				C382AF9EA62F38D8367C60A8 /* Settings.swift in Sources */,
 				D44636D7A7295095BE79A319 /* StageManager.swift in Sources */,
 				FF1C6191500F0C7CB77D124B /* Thumbnails.swift in Sources */,
+				76E913D8B02E5EB50DDB3B20 /* Transfers.swift in Sources */,
 				BAD59FBE3A47A9D51626EB2E /* Welcome.swift in Sources */,
 				D6E7F138485F9CF15B5192A6 /* Widget.swift in Sources */,
 				4951B903F9EE679A6F1DDA7A /* WindowServer.swift in Sources */,
