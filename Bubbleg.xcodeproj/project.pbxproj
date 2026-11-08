@@ -15,7 +15,6 @@
 		366473E54E6A4FE1EDECD087 /* Transfers.swift in Sources */ = {isa = PBXBuildFile; fileRef = E05AA18D997BE005C9DADB99 /* Transfers.swift */; };
 		46747FC0B4D43D9EDC12DD03 /* LaunchAtLogin.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5E893604BF672A462F91453 /* LaunchAtLogin.swift */; };
 		4784521A6D8B55507F17A701 /* AX.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C51C4051E94545496724E7F /* AX.swift */; };
-		4951B903F9EE679A6F1DDA7A /* WindowServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B27D453E308B7F7759DDA429 /* WindowServer.swift */; };
 		5562DD91C845116A6E37D09F /* click.wav in Resources */ = {isa = PBXBuildFile; fileRef = 56EE4E99D8A2985078B3BB31 /* click.wav */; };
 		723804ABAD0D4BE2889AFD2B /* Settings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 06E51F2B91441EFC4F909AD6 /* Settings.swift */; };
 		7372201A60FB68A42AB283B7 /* DesktopFiles.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B6D87C26B3F89BDDADFDBBF /* DesktopFiles.swift */; };
@@ -24,7 +23,6 @@
 		96ECAF04694462D69E1AD0A6 /* Log.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB4AF4BD3DEF1B08E48200A1 /* Log.swift */; };
 		9A2E1884E8D3C8C4563BAA12 /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = C14E32CFF7C795F3486B0873 /* main.swift */; };
 		9B7F21CBF31F442E044A14FF /* AppIcon.icns in Resources */ = {isa = PBXBuildFile; fileRef = 9478CB150421071272601DB7 /* AppIcon.icns */; };
-		9EB7EB7997D49D8F3FB356B0 /* WindowServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B27D453E308B7F7759DDA429 /* WindowServer.swift */; };
 		9F369363201A39120B8D254B /* AX.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C51C4051E94545496724E7F /* AX.swift */; };
 		A09DE3FB3EF6B943AD1A2CE0 /* DesktopFiles.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B6D87C26B3F89BDDADFDBBF /* DesktopFiles.swift */; };
 		AC5C61A67969AB6AABC0AA30 /* Widget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E0E7AAE305C97C7D740D9F8 /* Widget.swift */; };
@@ -58,7 +56,6 @@
 		8C51C4051E94545496724E7F /* AX.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AX.swift; sourceTree = "<group>"; };
 		9478CB150421071272601DB7 /* AppIcon.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = AppIcon.icns; sourceTree = "<group>"; };
 		AC8AE530C6C3D5BFB402F0F7 /* StageManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StageManager.swift; sourceTree = "<group>"; };
-		B27D453E308B7F7759DDA429 /* WindowServer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowServer.swift; sourceTree = "<group>"; };
 		B5E893604BF672A462F91453 /* LaunchAtLogin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchAtLogin.swift; sourceTree = "<group>"; };
 		C14E32CFF7C795F3486B0873 /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
 		E05AA18D997BE005C9DADB99 /* Transfers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Transfers.swift; sourceTree = "<group>"; };
@@ -101,7 +98,6 @@
 				E05AA18D997BE005C9DADB99 /* Transfers.swift */,
 				6E5A3406FE88AF77BF35C590 /* Welcome.swift */,
 				2E0E7AAE305C97C7D740D9F8 /* Widget.swift */,
-				B27D453E308B7F7759DDA429 /* WindowServer.swift */,
 			);
 			name = Bubbleg;
 			path = Sources/Bubbleg;
@@ -233,7 +229,6 @@
 				366473E54E6A4FE1EDECD087 /* Transfers.swift in Sources */,
 				EFE8FB45475CA85091D1928B /* Welcome.swift in Sources */,
 				AC5C61A67969AB6AABC0AA30 /* Widget.swift in Sources */,
-				9EB7EB7997D49D8F3FB356B0 /* WindowServer.swift in Sources */,
 				9A2E1884E8D3C8C4563BAA12 /* main.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -255,7 +250,6 @@
 				76E913D8B02E5EB50DDB3B20 /* Transfers.swift in Sources */,
 				BAD59FBE3A47A9D51626EB2E /* Welcome.swift in Sources */,
 				D6E7F138485F9CF15B5192A6 /* Widget.swift in Sources */,
-				4951B903F9EE679A6F1DDA7A /* WindowServer.swift in Sources */,
 				D4302883244EBE9FE2BE8CAD /* main.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

@@ -42,15 +42,14 @@ final class StageManager {
     private var thumbnailTimer: Timer?
     private var appInfoCache: [pid_t: (name: String, icon: NSImage?)] = [:]
     private var subscriptions: Set<AnyCancellable> = []
-    /// The active window, which the bubbles ring and snap onto.
+    /// The active window, which the bubbles ring.
     private var focused: CGWindowID?
     /// Windows in the order Bubbleg first saw them, which is the bubbles' fixed order.
     private var openingOrder: [CGWindowID] = []
-    private lazy var widget = WidgetPanel(onSelect: { [weak self] id in self?.focus(id) },
-                                          snapTargets: { [weak self] in self?.snapTargets() ?? [] })
+    private lazy var widget = WidgetPanel(onSelect: { [weak self] id in self?.focus(id) })
 
     /// Every Accessibility call waits on the app that answers it, and some apps take a few hundred ms per
-    /// question (the Godot editor does), which on the main thread froze the bubbles mid-follow for over a
+    /// question (the Godot editor does), which on the main thread froze the bubbles for over a
     /// second at every sync. So the main thread asks nothing: the sync reads on one queue, and the active
     /// window and focusing go through another so a slow sync never holds them up.
     private let syncQueue = DispatchQueue(label: "Bubbleg.sync", qos: .userInitiated)
@@ -153,13 +152,7 @@ final class StageManager {
             SwitcherItem(id: $0.id, title: $0.title, icon: appInfo($0.pid).icon, thumbnail: $0.thumbnail,
                          isFocused: $0.id == focused, isMinimized: $0.minimized)
         }
-        widget.update(items: items, focused: focused, style: style)
-    }
-
-    /// Only the active window: snapped, the bubbles move to whichever window is active anyway.
-    private func snapTargets() -> [(id: CGWindowID, frame: CGRect)] {
-        guard let focused, windows[focused]?.present == true else { return [] }
-        return WindowServer.onScreen([focused])
+        widget.update(items: items, style: style)
     }
 
     private func focus(_ id: CGWindowID) {
@@ -311,8 +304,7 @@ final class StageManager {
     }
 
     private nonisolated static func watch(_ element: AXUIElement, observer: AXObserver, refcon: UnsafeMutableRawPointer) {
-        for name in [kAXUIElementDestroyedNotification, kAXWindowMiniaturizedNotification, kAXWindowDeminiaturizedNotification,
-                     kAXMovedNotification, kAXResizedNotification] {
+        for name in [kAXUIElementDestroyedNotification, kAXWindowMiniaturizedNotification, kAXWindowDeminiaturizedNotification] {
             AXObserverAddNotification(observer, element, name as CFString, refcon)
         }
     }
@@ -322,8 +314,6 @@ final class StageManager {
         case kAXFocusedWindowChangedNotification, kAXMainWindowChangedNotification:
             updateWidget()
             scheduleUpdate()
-        case kAXMovedNotification, kAXResizedNotification:
-            widget.follow()
         default:
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
                 MainActor.assumeIsolated { self?.reconcile() }

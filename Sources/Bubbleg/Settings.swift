@@ -7,7 +7,6 @@ struct Style: Codable, Equatable {
     var alwaysDark = false
 
     /// How far snapped bubbles sit from the window's edge.
-    var switcherOffsetX = 8.0
     var switcherHeight = 32.0
     var switcherSpacing = 6.0
     var switcherCornerRadius = 5.0
@@ -134,7 +133,6 @@ private struct SettingsView: View {
             SliderRow("Spacing", $settings.style.switcherSpacing, 0...30)
             SliderRow("Corner radius", $settings.style.switcherCornerRadius, 0...20)
             SliderRow("Hover size", $settings.style.switcherHoverSize, 40...400, unit: "px")
-            SliderRow("Gap from window", $settings.style.switcherOffsetX, -200...400)
             Toggle("Background", isOn: $settings.style.switcherBackground)
             Toggle("App icon", isOn: $settings.style.switcherShowIcon)
         }

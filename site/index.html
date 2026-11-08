@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Bubbleg – Free Window Switcher for Mac</title>
-  <meta name="description" content="Bubbleg is a free window switcher for Mac. Every open window becomes a small live preview you can click, drag anywhere or snap onto the window you're in." />
+  <meta name="description" content="Bubbleg is a free window switcher for Mac. Every open window becomes a small live preview you can click, drag anywhere or snap to a corner or edge of the screen." />
   <link rel="canonical" href="https://bubbleg.yaosamo.com/" />
   <meta name="robots" content="index, follow, max-image-preview:large, max-video-preview:-1, max-snippet:-1" />
   <meta name="author" content="Yaroslav Samoylov" />
@@ -13,7 +13,7 @@
   <meta property="og:site_name" content="Bubbleg" />
   <meta property="og:locale" content="en_US" />
   <meta property="og:title" content="Bubbleg – Free Window Switcher for Mac" />
-  <meta property="og:description" content="Every open window becomes a small live preview you can click, drag anywhere or snap onto the window you're in. Free, no in-app purchases." />
+  <meta property="og:description" content="Every open window becomes a small live preview you can click, drag anywhere or snap to a corner or edge of the screen. Free, no in-app purchases." />
   <meta property="og:type" content="website" />
   <meta property="og:url" content="https://bubbleg.yaosamo.com/" />
   <meta property="og:video" content="https://bubbleg.yaosamo.com/demo.mp4" />
@@ -26,7 +26,7 @@
   <meta property="og:image:alt" content="The Bubbleg icon above “Better way to switch open apps on Mac” and a pink Download for Mac button." />
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="Bubbleg – Free Window Switcher for Mac" />
-  <meta name="twitter:description" content="Every open window becomes a small live preview you can click, drag anywhere or snap onto the window you're in. Free, no in-app purchases." />
+  <meta name="twitter:description" content="Every open window becomes a small live preview you can click, drag anywhere or snap to a corner or edge of the screen. Free, no in-app purchases." />
   <meta name="twitter:image" content="https://bubbleg.yaosamo.com/og.png" />
   <meta name="twitter:image:alt" content="The Bubbleg icon above “Better way to switch open apps on Mac” and a pink Download for Mac button." />
   <meta name="twitter:creator" content="@yaosamo" />
@@ -41,7 +41,7 @@
         "@type": "SoftwareApplication",
         "@id": "https://bubbleg.yaosamo.com/#app",
         "name": "Bubbleg",
-        "description": "A free window switcher for Mac. Every open window becomes a small live preview you can click to switch to, drag anywhere or snap onto the window you're in.",
+        "description": "A free window switcher for Mac. Every open window becomes a small live preview you can click to switch to, drag anywhere or snap to a corner or edge of the screen.",
         "url": "https://bubbleg.yaosamo.com/",
         "applicationCategory": "UtilitiesApplication",
         "operatingSystem": "macOS 14 or later",
@@ -55,7 +55,7 @@
       {
         "@type": "VideoObject",
         "name": "Bubbleg demo: switching windows on Mac",
-        "description": "How Bubbleg turns every open window into a small preview you can click, drag or snap onto the window you're in.",
+        "description": "How Bubbleg turns every open window into a small preview you can click, drag or snap to a corner or edge of the screen.",
         "thumbnailUrl": "https://bubbleg.yaosamo.com/demo-poster.jpg",
         "contentUrl": "https://bubbleg.yaosamo.com/demo.mp4",
         "uploadDate": "2026-10-22",
@@ -63,8 +63,7 @@
         "about": { "@id": "https://bubbleg.yaosamo.com/#app" },
         "hasPart": [
           { "@type": "Clip", "name": "The problem", "startOffset": 0, "endOffset": 98, "url": "https://bubbleg.yaosamo.com/#t=0" },
-          { "@type": "Clip", "name": "All your windows", "startOffset": 98, "endOffset": 121, "url": "https://bubbleg.yaosamo.com/#t=98" },
-          { "@type": "Clip", "name": "Snap to any window", "startOffset": 121, "endOffset": 160, "url": "https://bubbleg.yaosamo.com/#t=121" },
+          { "@type": "Clip", "name": "All your windows", "startOffset": 98, "endOffset": 160, "url": "https://bubbleg.yaosamo.com/#t=98" },
           { "@type": "Clip", "name": "Settings", "startOffset": 160, "endOffset": 214, "url": "https://bubbleg.yaosamo.com/#t=160" }
         ]
       }
@@ -525,7 +524,6 @@
       <ol class="chapters" aria-label="Chapters">
         <li><button type="button" data-start="0"><span>0:00</span>The problem</button></li>
         <li><button type="button" data-start="98"><span>1:38</span>All your windows</button></li>
-        <li><button type="button" data-start="121"><span>2:01</span>Snap to any window</button></li>
         <li><button type="button" data-start="160"><span>2:40</span>Settings</button></li>
       </ol>
     </section>
@@ -669,8 +667,7 @@
     window.addEventListener("hashchange", startAt);
 
     // Bubbleg to play with, by the app's own rules (Widget.swift): drag the panel anywhere; it
-    // clicks onto the viewport's corners and edge middles, and onto a side of the video, which it
-    // then slides along, and comes free once pulled 64px away. Near a left or right edge it turns
+    // clicks onto the viewport's corners and edge middles, and comes free once pulled 64px away. Near a left or right edge it turns
     // into a column, near the top or bottom into a row. Clicking a bubble only moves the ring.
     (() => {
       const panel = document.getElementById("bubbles");
@@ -680,13 +677,12 @@
       const items = [...panel.children];
       const widths = items.map(item => parseFloat(item.style.getPropertyValue("--w")));
       const HEIGHT = 32, SPACING = 6, PADDING = 5;
-      const MARGIN = 16, POINT_REACH = 40, EDGE_REACH = 24, TURN_REACH = 120, RELEASE = 64, WINDOW_GAP = 8;
+      const MARGIN = 16, POINT_REACH = 40, TURN_REACH = 120, RELEASE = 64;
       const SPOTS = {
         topLeft: [0, 0], top: [0.5, 0], topRight: [1, 0], right: [1, 0.5],
         bottomRight: [1, 1], bottom: [0.5, 1], bottomLeft: [0, 1], left: [0, 0.5],
       };
-      const SIDES = ["top", "right", "bottom", "left"];
-      let anchor = { type: "window", side: "left", offset: 0.5 };
+      let anchor = { type: "screen", spot: "left" };
       let vertical = true;
       let placed = null;
       let mode = "";
@@ -756,11 +752,6 @@
       }
 
       const clamp = (v, lo, hi) => Math.min(Math.max(v, lo), hi);
-      const viewport = () => ({ x: 0, y: 0, w: innerWidth, h: innerHeight });
-      const video = () => {
-        const r = document.getElementById("screen").getBoundingClientRect();
-        return { x: r.left, y: r.top, w: r.width, h: r.height };
-      };
 
       // The resting bubbles and their backdrop: what snaps, as opposed to room to grow on hover.
       function bodySize(isVertical) {
@@ -774,23 +765,6 @@
       const spotVertical = spot => SPOTS[spot][0] === 0.5 ? false : SPOTS[spot][1] === 0.5 ? true : vertical;
       const pointOf = spot => ({ x: innerWidth * SPOTS[spot][0], y: innerHeight * SPOTS[spot][1] });
 
-      // Outside `side` of the video, `offset` of the way along it; inside, when there's no room out.
-      function onVideo(side, offset) {
-        const v = video(), isVertical = side === "left" || side === "right";
-        const size = bodySize(isVertical), screen = viewport();
-        const [start, length, own] = isVertical ? [v.y, v.h, size.h] : [v.x, v.w, size.w];
-        let along = start + (length - own) * (own > length ? 0.5 : clamp(offset, 0, 1));
-        along = clamp(along, 0, (isVertical ? screen.h : screen.w) - own);
-        const before = side === "left" || side === "top";
-        const [edgeMin, edgeMax, thickness] = isVertical ? [v.x, v.x + v.w, size.w] : [v.y, v.y + v.h, size.h];
-        const outside = before ? edgeMin - WINDOW_GAP - thickness : edgeMax + WINDOW_GAP;
-        const fits = outside >= 0 && outside + thickness <= (isVertical ? screen.w : screen.h);
-        const across = fits ? outside : before ? edgeMin + WINDOW_GAP : edgeMax - WINDOW_GAP - thickness;
-        const body = isVertical ? { x: across, y: along, ...size } : { x: along, y: across, ...size };
-        // Hovered bubbles grow away from the video outside it, and into it when inside.
-        return { body, vertical: isVertical, growStart: before === fits };
-      }
-
       function resolve(a) {
         if (a.type === "screen") {
           const isVertical = spotVertical(a.spot), size = bodySize(isVertical), [ux, uy] = SPOTS[a.spot];
@@ -798,7 +772,6 @@
           const y = uy === 0 ? MARGIN : uy === 1 ? innerHeight - MARGIN - size.h : (innerHeight - size.h) / 2;
           return { body: { x, y, ...size }, vertical: isVertical, growStart: (isVertical ? ux : uy) === 1 };
         }
-        if (a.type === "window") return onVideo(a.side, a.offset);
         const size = bodySize(a.vertical);
         const body = {
           x: clamp(a.x, 0, innerWidth - size.w), y: clamp(a.y, 0, innerHeight - size.h), ...size,
@@ -849,18 +822,6 @@
       const distance = (pt, r) =>
         Math.hypot(Math.max(r.x - pt.x, 0, pt.x - r.x - r.w), Math.max(r.y - pt.y, 0, pt.y - r.y - r.h));
 
-      // How far along `side` of the video the bubbles would sit, if the pointer has them within reach.
-      function sideOffset(pointer, side, reach) {
-        const isVertical = side === "left" || side === "right";
-        const body = freeBody(pointer, isVertical), snapped = onVideo(side, 0).body, v = video();
-        const gap = isVertical ? Math.abs(body.x - snapped.x) : Math.abs(body.y - snapped.y);
-        const overlaps = isVertical ? body.y + body.h > v.y && body.y < v.y + v.h
-                                    : body.x + body.w > v.x && body.x < v.x + v.w;
-        if (gap >= reach || !overlaps) return null;
-        const [start, room] = isVertical ? [body.y - v.y, v.h - body.h] : [body.x - v.x, v.w - body.w];
-        return room > 0 ? clamp(start / room, 0, 1) : 0.5;
-      }
-
       // Near a viewport edge they turn to lie along it; in a corner, the shape they have wins a near tie.
       function facing(pointer) {
         const side = Math.min(pointer.x, innerWidth - pointer.x);
@@ -873,23 +834,15 @@
         if (anchor.type === "screen" && distance(pointOf(anchor.spot), freeBody(pointer, spotVertical(anchor.spot))) < RELEASE) {
           return anchor;
         }
-        if (anchor.type === "window") {
-          const offset = sideOffset(pointer, anchor.side, RELEASE);
-          if (offset !== null) return { type: "window", side: anchor.side, offset };
-        }
         for (const spot in SPOTS) {
           if (distance(pointOf(spot), freeBody(pointer, spotVertical(spot))) < POINT_REACH) return { type: "screen", spot };
-        }
-        for (const side of SIDES) {
-          const offset = sideOffset(pointer, side, EDGE_REACH);
-          if (offset !== null) return { type: "window", side, offset };
         }
         const isVertical = facing(pointer) ?? vertical;
         const body = freeBody(pointer, isVertical);
         return { type: "free", x: body.x, y: body.y, vertical: isVertical };
       }
 
-      const snapOf = a => a.type === "screen" ? `screen ${a.spot}` : a.type === "window" ? `video ${a.side}` : null;
+      const snapOf = a => a.type === "screen" ? a.spot : null;
 
       // The app's own click, decoded ahead so it plays the moment they snap. Browsers only start
       // audio after a gesture, so the context resumes on the first press.
@@ -965,12 +918,10 @@
       panel.addEventListener("pointerup", release);
       panel.addEventListener("pointercancel", release);
 
-      // Snapped to the video, they follow it as the page lays out, scrolls or resizes.
-      const follow = () => apply(resolve(anchor), false);
-      addEventListener("resize", follow);
-      addEventListener("scroll", follow, { passive: true });
-      new ResizeObserver(follow).observe(document.getElementById("screen"));
-      follow();
+      // Sticky points and free spots are kept on screen as the viewport resizes.
+      const place = () => apply(resolve(anchor), false);
+      addEventListener("resize", place);
+      place();
     })();
   </script>
 </body>
